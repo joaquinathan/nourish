@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="theme-color" content="#FAF7F2" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="/apple-touch-icon.png" />
 <title>Nourish — Food Log</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&display=swap" rel="stylesheet" />
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -340,7 +342,7 @@ function App() {
           <span style={{ fontFamily:"'Fraunces', serif", fontSize:27, color:"#E8633A", fontWeight:500 }}>nourish</span>
           <span style={{ fontSize:10, color:"#A89F93", letterSpacing:2, textTransform:"uppercase", fontWeight:600 }}>food log</span>
         </div>
-        <button onClick={()=>setImportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:9, padding:"8px 11px", cursor:"pointer", fontSize:11, fontWeight:700 }}>⬇ Backup</button>
+        <button onClick={()=>setImportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:9, padding:"8px 11px", cursor:"pointer", fontSize:11, fontWeight:700 }}>⬇ Import/Backup</button>
       </div>
 
       <div style={{ display:"flex", background:"#fff", borderBottom:"1px solid #ECE6DD", position:"sticky", top:0, zIndex:10 }}>
