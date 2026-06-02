@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="theme-color" content="#FAF7F2" />
+<title>Nourish — Food Log</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&display=swap" rel="stylesheet" />
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #FAF7F2; }
+  input, select, textarea, button { font-family: 'DM Sans', sans-serif; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+/* ============ CONFIG ============ */
+const STORAGE_KEY = "nourish-log-v2";
+const FOODS_KEY = "nourish-foods-v2";
+const MACROS = ["calories", "fat", "protein", "carbs", "fiber"];
+const MACRO_UNITS = { calories: "kcal", fat: "g", protein: "g", carbs: "g", fiber: "g" };
+const MACRO_COLORS = { calories: "#E8633A", fat: "#D4943A", protein: "#2BA89E", carbs: "#3B9BC4", fiber: "#5BA86B" };
+const HEALTH_TAGS = {
+  caffeine:      { label: "Caffeine",     color: "#8B6914", bg: "#FBF3DC", icon: "\u2615" },
+  electrolytes:  { label: "Electrolytes", color: "#2980B9", bg: "#E3F2FB", icon: "\u26A1" },
+  probiotic:     { label: "Probiotic",    color: "#4A9D5B", bg: "#E8F6EA", icon: "\uD83E\uDDA0" },
+  antioxidants:  { label: "Antioxidants", color: "#8E5CC4", bg: "#F2EAFB", icon: "\uD83E\uDED0" },
+  "high-sugar":  { label: "High Sugar",   color: "#D14343", bg: "#FBE9E9", icon: "\uD83C\uDF6C" },
+  "high-sodium": { label: "High Sodium",  color: "#B8901A", bg: "#FBF5DC", icon: "\uD83E\uDDC2" },
+  "high-fiber":  { label: "High Fiber",   color: "#4A9D5B", bg: "#E8F6EA", icon: "\uD83C\uDF3E" },
+  "high-protein":{ label: "High Protein", color: "#1F8C82", bg: "#E0F5F2", icon: "\uD83D\uDCAA" },
+  hydrating:     { label: "Hydrating",    color: "#3B9BC4", bg: "#E3F2FB", icon: "\uD83D\uDCA7" },
+  "omega-3":     { label: "Omega-3",      color: "#5BA86B", bg: "#E8F6EA", icon: "\uD83D\uDC1F" },
+  alcohol:       { label: "Alcohol",      color: "#A569BD", bg: "#F4ECFA", icon: "\uD83C\uDF77" },
+  "vitamin-c":   { label: "Vitamin C",    color: "#E67E22", bg: "#FDF0E3", icon: "\uD83C\uDF4A" },
+};
+const TAG_LIST = Object.keys(HEALTH_TAGS).join(", ");
+const EMPTY_FOOD = { name: "", calories: "", fat: "", protein: "", carbs: "", fiber: "", servingLabel: "serving", defaultServing: "1", caffeine: "0", sodium: "0", healthTags: [] };
+const EMPTY_FORM = { food: "", time: "", serving: "1", unit: "serving", notes: "", volume: "", volumeUnit: "oz" };
+
+/* ============ BUILT-IN FOODS (instant, free, no AI needed) ============ */
+const BUILTIN_FOODS = [
+  { m:["siggi","siggis","skyr"], name:"Siggi's Vanilla", unit:"container", calories:110, fat:0, protein:14, carbs:13, fiber:0, caffeine:0, sodium:55, healthTags:["high-protein","probiotic"] },
+  { m:["greek yogurt","plain yogurt"], name:"Greek Yogurt (plain, nonfat)", unit:"cup", calories:100, fat:0.7, protein:17, carbs:6, fiber:0, caffeine:0, sodium:60, healthTags:["high-protein","probiotic"] },
+  { m:["liquid iv energy"], name:"Liquid IV Energy", unit:"packet", calories:45, fat:0, protein:0, carbs:12, fiber:0, caffeine:100, sodium:200, healthTags:["caffeine","electrolytes","hydrating"] },
+  { m:["liquid iv"], name:"Liquid IV", unit:"packet", calories:45, fat:0, protein:0, carbs:11, fiber:0, caffeine:0, sodium:500, healthTags:["electrolytes","hydrating","high-sodium"] },
+  { m:["celsius"], name:"Celsius", unit:"can", calories:10, fat:0, protein:0, carbs:2, fiber:0, caffeine:200, sodium:0, healthTags:["caffeine"] },
+  { m:["peanut butter","pb "], name:"Peanut Butter", unit:"tbsp", calories:94, fat:8, protein:4, carbs:3, fiber:1, caffeine:0, sodium:73, healthTags:["high-protein"] },
+  { m:["jelly","jam"], name:"Jelly / Jam", unit:"tbsp", calories:56, fat:0, protein:0, carbs:14, fiber:0, caffeine:0, sodium:6, healthTags:["high-sugar"] },
+  { m:["tortilla","wrap","roll up"], name:"Flour Tortilla", unit:"medium", calories:140, fat:3.5, protein:4, carbs:24, fiber:1, caffeine:0, sodium:340, healthTags:[] },
+  { m:["egg"], name:"Egg", unit:"large", calories:72, fat:5, protein:6, carbs:0.4, fiber:0, caffeine:0, sodium:71, healthTags:["high-protein"] },
+  { m:["chicken breast","chicken"], name:"Chicken Breast (cooked)", unit:"4 oz", calories:187, fat:4, protein:35, carbs:0, fiber:0, caffeine:0, sodium:84, healthTags:["high-protein"] },
+  { m:["salmon"], name:"Salmon (cooked)", unit:"4 oz", calories:233, fat:14, protein:25, carbs:0, fiber:0, caffeine:0, sodium:69, healthTags:["high-protein","omega-3"] },
+  { m:["white rice","rice"], name:"White Rice (cooked)", unit:"cup", calories:205, fat:0.4, protein:4, carbs:45, fiber:0.6, caffeine:0, sodium:2, healthTags:[] },
+  { m:["brown rice"], name:"Brown Rice (cooked)", unit:"cup", calories:218, fat:1.6, protein:5, carbs:46, fiber:3.5, caffeine:0, sodium:2, healthTags:["high-fiber"] },
+  { m:["oatmeal","oats"], name:"Oatmeal (cooked)", unit:"cup", calories:166, fat:3.6, protein:6, carbs:28, fiber:4, caffeine:0, sodium:9, healthTags:["high-fiber"] },
+  { m:["banana"], name:"Banana", unit:"medium", calories:105, fat:0.4, protein:1.3, carbs:27, fiber:3, caffeine:0, sodium:1, healthTags:[] },
+  { m:["apple"], name:"Apple", unit:"medium", calories:95, fat:0.3, protein:0.5, carbs:25, fiber:4, caffeine:0, sodium:2, healthTags:["high-fiber"] },
+  { m:["avocado"], name:"Avocado", unit:"half", calories:160, fat:15, protein:2, carbs:9, fiber:7, caffeine:0, sodium:7, healthTags:["high-fiber"] },
+  { m:["coffee","black coffee"], name:"Coffee (black)", unit:"8 oz", calories:2, fat:0, protein:0.3, carbs:0, fiber:0, caffeine:95, sodium:5, healthTags:["caffeine"] },
+  { m:["water"], name:"Water", unit:"oz", calories:0, fat:0, protein:0, carbs:0, fiber:0, caffeine:0, sodium:0, healthTags:["hydrating"] },
+  { m:["mixed nuts","nuts","peanuts","almonds"], name:"Mixed Nuts", unit:"oz", calories:170, fat:15, protein:6, carbs:6, fiber:2, caffeine:0, sodium:0, healthTags:["high-protein"] },
+];
+function findBuiltin(query) {
+  const q = (query || "").toLowerCase().trim();
+  if (!q) return null;
+  for (const f of BUILTIN_FOODS) if (f.name.toLowerCase() === q) return f;
+  for (const f of BUILTIN_FOODS) if (f.m.some(t => q.includes(t) || t.includes(q))) return f;
+  return null;
+}
+
+/* ============ AI via your own Vercel backend ============ */
+async function callAI(prompt) {
+  const r = await fetch("/api/estimate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  let data;
+  try { data = await r.json(); } catch { throw new Error("Server didn't respond properly"); }
+  if (data.error) throw new Error(typeof data.error === "string" ? data.error : (data.error.message || "AI error"));
+  const text = (data.content || []).find(b => b.type === "text")?.text;
+  if (!text) throw new Error("Empty AI reply");
+  const s = text.indexOf("{"), e = text.lastIndexOf("}");
+  if (s === -1 || e === -1) throw new Error("AI returned no data");
+  return JSON.parse(text.slice(s, e + 1));
+}
+
+async function estimateNutrition(description, serving, unit, isDrink) {
+  const f = findBuiltin(description);
+  if (f) {
+    const m = parseFloat(serving) || 1;
+    return { calories: Math.round(f.calories*m), fat:+(f.fat*m).toFixed(1), protein:+(f.protein*m).toFixed(1), carbs:+(f.carbs*m).toFixed(1), fiber:+(f.fiber*m).toFixed(1), caffeine: Math.round(f.caffeine*m), sodium: Math.round(f.sodium*m), healthTags: f.healthTags };
+  }
+  return callAI(`Estimate nutrition facts. Respond with ONLY a JSON object, nothing else.
+Item: "${description}"
+Amount: ${serving} ${unit}
+Type: ${isDrink ? "drink/beverage" : "food"}
+Format: {"calories":0,"fat":0,"protein":0,"carbs":0,"fiber":0,"caffeine":0,"sodium":0,"healthTags":[]}
+healthTags only from: ${TAG_LIST}. caffeine and sodium in mg. Numbers only.`);
+}
+
+async function lookupFood(name) {
+  const f = findBuiltin(name);
+  if (f) return { calories: f.calories, fat: f.fat, protein: f.protein, carbs: f.carbs, fiber: f.fiber, caffeine: f.caffeine, sodium: f.sodium, servingSize: 1, servingUnit: f.unit, healthTags: f.healthTags };
+  return callAI(`Give standard nutrition facts for one serving. Respond with ONLY a JSON object, nothing else.
+Product: "${name}"
+Format: {"calories":0,"fat":0,"protein":0,"carbs":0,"fiber":0,"caffeine":0,"sodium":0,"servingSize":1,"servingUnit":"serving","healthTags":[]}
+healthTags only from: ${TAG_LIST}. caffeine and sodium in mg. servingUnit is a label like "packet","cup","scoop","container","oz".`);
+}
+
+/* ============ HELPERS ============ */
+function getNow() { return new Date().toTimeString().slice(0, 5); }
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function fmtDate(d) { if (d === todayStr()) return "Today"; return new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); }
+function sumMacros(items) { const acc = MACROS.reduce((a, m) => { a[m] = items.reduce((s, i) => s + (parseFloat(i[m]) || 0), 0); return a; }, {}); acc.caffeine = items.reduce((s, i) => s + (parseFloat(i.caffeine) || 0), 0); return acc; }
+function loadLS(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
+function saveLS(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+
+/* ============ SIMPLE BAR CHART (no library) ============ */
+function BarChartSimple({ data, color, unit }) {
+  const max = Math.max(...data.map(d => d.value), 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 165, padding: "0 2px" }}>
+      {data.map((d, i) => (
+        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
+          <div style={{ fontSize: 9, color: "#A89F93", marginBottom: 3 }}>{d.value > 0 ? Math.round(d.value) : ""}</div>
+          <div style={{ width: "100%", maxWidth: 26, height: ((d.value/max)*100)+"%", minHeight: d.value > 0 ? 3 : 0, background: color, borderRadius: "4px 4px 0 0", opacity: 0.85 }} />
+          <div style={{ fontSize: 8, color: "#B0A89C", marginTop: 4, whiteSpace: "nowrap" }}>{d.date}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============ APP ============ */
+function App() {
+  const [tab, setTab] = useState("log");
+  const [entries, setEntries] = useState([]);
+  const [savedFoods, setSavedFoods] = useState([]);
+  const [form, setForm] = useState({ ...EMPTY_FORM, time: getNow() });
+  const [entryType, setEntryType] = useState("food");
+  const [loading, setLoading] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const [sugOpen, setSugOpen] = useState(false);
+  const [ingSugOpen, setIngSugOpen] = useState(false);
+  const [autoSavePrompt, setAutoSavePrompt] = useState(null);
+  const [mealName, setMealName] = useState("");
+  const [mealIngredients, setMealIngredients] = useState([]);
+  const [ingInput, setIngInput] = useState("");
+  const [ingServing, setIngServing] = useState("1");
+  const [ingUnit, setIngUnit] = useState("serving");
+  const [ingLoading, setIngLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [exportModal, setExportModal] = useState(false);
+  const [exportCopied, setExportCopied] = useState(false);
+  const [importModal, setImportModal] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [editingFood, setEditingFood] = useState(null);
+  const [newFood, setNewFood] = useState({ ...EMPTY_FOOD });
+  const [foodLookupLoading, setFoodLookupLoading] = useState(false);
+  const [historyView, setHistoryView] = useState("list");
+  const [chartMacro, setChartMacro] = useState("calories");
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const e = loadLS(STORAGE_KEY); if (e) setEntries(e);
+    const f = loadLS(FOODS_KEY); if (f) setSavedFoods(f);
+  }, []);
+
+  function showToast(msg, type) { setToast({ msg, type: type || "success" }); setTimeout(() => setToast(null), type === "error" ? 6000 : 3000); }
+  function persistEntries(u) { setEntries(u); saveLS(STORAGE_KEY, u); }
+  function persistFoods(u) { setSavedFoods(u); saveLS(FOODS_KEY, u); }
+
+  async function handleLog() {
+    if (!form.food.trim()) return showToast("Enter a name first", "error");
+    setLoading(true);
+    try {
+      const saved = savedFoods.find(f => f.name.toLowerCase() === form.food.trim().toLowerCase());
+      let macros;
+      if (saved) {
+        const m = parseFloat(form.serving) || 1;
+        macros = { calories: Math.round(saved.calories*m), fat:+(saved.fat*m).toFixed(1), protein:+(saved.protein*m).toFixed(1), carbs:+(saved.carbs*m).toFixed(1), fiber:+(saved.fiber*m).toFixed(1), caffeine: Math.round((parseFloat(saved.caffeine)||0)*m), sodium: Math.round((parseFloat(saved.sodium)||0)*m), healthTags: saved.healthTags||[] };
+      } else {
+        macros = await estimateNutrition(form.food + (form.notes ? " ("+form.notes+")" : ""), form.serving, entryType==="drink"&&form.volume ? form.volume+" "+form.volumeUnit : form.unit, entryType==="drink");
+      }
+      const entry = { id: Date.now(), date: selectedDate, type: entryType, food: form.food, time: form.time, serving: form.serving, unit: entryType==="drink"?form.volumeUnit:form.unit, volume: form.volume, notes: form.notes, source: saved?"saved":"ai", ...macros };
+      const updated = [...entries, entry];
+      persistEntries(updated);
+      setForm({ ...EMPTY_FORM, time: getNow() }); setSugOpen(false);
+      if (!saved) { const count = updated.filter(e => e.food.toLowerCase() === entry.food.toLowerCase()).length; if (count >= 2) setAutoSavePrompt({ food: entry.food, macros, unit: entry.unit }); }
+      showToast(saved ? "Logged from library" : "Estimated & logged");
+    } catch (e) { showToast(e.message, "error"); }
+    setLoading(false);
+  }
+
+  async function handleAddIngredient() {
+    if (!ingInput.trim()) return;
+    setIngLoading(true);
+    try {
+      const saved = savedFoods.find(f => f.name.toLowerCase() === ingInput.trim().toLowerCase());
+      let macros;
+      if (saved) { const m = parseFloat(ingServing) || 1; macros = { calories: Math.round(saved.calories*m), fat:+(saved.fat*m).toFixed(1), protein:+(saved.protein*m).toFixed(1), carbs:+(saved.carbs*m).toFixed(1), fiber:+(saved.fiber*m).toFixed(1), caffeine: Math.round((parseFloat(saved.caffeine)||0)*m), healthTags: saved.healthTags||[] }; }
+      else { macros = await estimateNutrition(ingInput.trim(), ingServing, ingUnit, false); }
+      setMealIngredients(prev => [...prev, { id: Date.now(), name: ingInput.trim(), serving: ingServing, unit: ingUnit, source: saved?"saved":"ai", ...macros }]);
+      setIngInput(""); setIngServing("1"); setIngUnit("serving"); setIngSugOpen(false);
+    } catch (e) { showToast(e.message, "error"); }
+    setIngLoading(false);
+  }
+
+  function handleLogMeal() {
+    if (!mealName.trim()) return showToast("Name your meal first", "error");
+    if (!mealIngredients.length) return showToast("Add an ingredient first", "error");
+    const totals = sumMacros(mealIngredients);
+    const allTags = [...new Set(mealIngredients.flatMap(i => i.healthTags||[]))];
+    const list = mealIngredients.map(i => i.name+" ("+i.serving+" "+i.unit+")").join(", ");
+    const entry = { id: Date.now(), date: selectedDate, type: "meal", food: mealName, time: getNow(), serving: "1", unit: "meal", notes: list, source: "meal", ...totals, healthTags: allTags, ingredients: mealIngredients };
+    persistEntries([...entries, entry]);
+    setMealName(""); setMealIngredients([]); setEntryType("food");
+    showToast("Meal logged");
+  }
+
+  async function handleLookupFood() {
+    if (!newFood.name.trim()) return showToast("Type a name first", "error");
+    setFoodLookupLoading(true);
+    try {
+      const d = await lookupFood(newFood.name);
+      setNewFood(prev => ({ ...prev, calories: d.calories??"", fat: d.fat??"", protein: d.protein??"", carbs: d.carbs??"", fiber: d.fiber??"", caffeine: d.caffeine??"0", sodium: d.sodium??"0", servingLabel: d.servingUnit||"serving", defaultServing: (d.servingSize??1).toString(), healthTags: Array.isArray(d.healthTags)?d.healthTags:[] }));
+      showToast("Loaded \u2014 review & save");
+    } catch (e) { showToast(e.message, "error"); }
+    setFoodLookupLoading(false);
+  }
+
+  function handleSaveFood() {
+    if (!newFood.name.trim() || !newFood.calories) return showToast("Name & calories required", "error");
+    const food = { id: editingFood?editingFood.id:Date.now(), name: newFood.name.trim(), calories: parseFloat(newFood.calories)||0, fat: parseFloat(newFood.fat)||0, protein: parseFloat(newFood.protein)||0, carbs: parseFloat(newFood.carbs)||0, fiber: parseFloat(newFood.fiber)||0, caffeine: parseFloat(newFood.caffeine)||0, sodium: parseFloat(newFood.sodium)||0, servingLabel: newFood.servingLabel||"serving", defaultServing: newFood.defaultServing||"1", healthTags: newFood.healthTags||[] };
+    persistFoods(editingFood ? savedFoods.map(f => f.id===editingFood.id?food:f) : [...savedFoods, food]);
+    setNewFood({ ...EMPTY_FOOD }); setEditingFood(null);
+    showToast(editingFood ? "Updated" : "Saved to library");
+  }
+
+  function handleAutoSave() {
+    if (!autoSavePrompt) return;
+    const { food, macros, unit } = autoSavePrompt;
+    persistFoods([...savedFoods, { id: Date.now(), name: food, calories: macros.calories, fat: macros.fat, protein: macros.protein, carbs: macros.carbs, fiber: macros.fiber, caffeine: macros.caffeine||0, sodium: macros.sodium||0, healthTags: macros.healthTags||[], servingLabel: unit||"serving", defaultServing: "1" }]);
+    setAutoSavePrompt(null); showToast('"'+food+'" saved to library');
+  }
+
+  function handleDeleteEntry(id) { persistEntries(entries.filter(e => e.id!==id)); setDeleteConfirm(null); showToast("Removed"); }
+  function handleDeleteFood(id) { persistFoods(savedFoods.filter(f => f.id!==id)); showToast("Removed"); }
+
+  function handleImport() {
+    if (!importText.trim()) return showToast("Paste a code first", "error");
+    let data;
+    try { const s = importText.indexOf("{"), e = importText.lastIndexOf("}"); data = JSON.parse(importText.slice(s, e+1)); }
+    catch { return showToast("That code doesn't look right", "error"); }
+    let af = 0, ae = 0; const nf = [...savedFoods]; const ne = [...entries];
+    if (Array.isArray(data.library)) data.library.forEach((f,i) => { if (!f.name) return; nf.push({ id: Date.now()+i, name: f.name, calories: parseFloat(f.calories)||0, fat: parseFloat(f.fat)||0, protein: parseFloat(f.protein)||0, carbs: parseFloat(f.carbs)||0, fiber: parseFloat(f.fiber)||0, caffeine: parseFloat(f.caffeine)||0, sodium: parseFloat(f.sodium)||0, servingLabel: f.servingLabel||f.unit||"serving", defaultServing: (f.defaultServing??1).toString(), healthTags: Array.isArray(f.healthTags)?f.healthTags:[] }); af++; });
+    if (Array.isArray(data.entries)) data.entries.forEach((e,i) => { if (!e.food) return; ne.push({ id: Date.now()+1000+i, date: e.date||selectedDate, type: e.type||"food", food: e.food, time: e.time||getNow(), serving: (e.serving??1).toString(), unit: e.unit||"serving", volume: e.volume||"", notes: e.notes||"", source: "import", calories: parseFloat(e.calories)||0, fat: parseFloat(e.fat)||0, protein: parseFloat(e.protein)||0, carbs: parseFloat(e.carbs)||0, fiber: parseFloat(e.fiber)||0, caffeine: parseFloat(e.caffeine)||0, sodium: parseFloat(e.sodium)||0, healthTags: Array.isArray(e.healthTags)?e.healthTags:[] }); ae++; });
+    if (af===0 && ae===0) return showToast("Nothing to import", "error");
+    if (af) persistFoods(nf); if (ae) persistEntries(ne);
+    setImportText(""); setImportModal(false);
+    const parts = []; if (ae) parts.push(ae+" logged"); if (af) parts.push(af+" to library");
+    showToast("Imported: " + parts.join(", "));
+  }
+
+  function buildExportText(date) {
+    const dayE = entries.filter(e => e.date===date).sort((a,b)=>a.time.localeCompare(b.time));
+    const tot = MACROS.reduce((acc,m)=>{acc[m]=dayE.reduce((s,e)=>s+(parseFloat(e[m])||0),0);return acc;},{});
+    const caf = dayE.reduce((s,e)=>s+(parseFloat(e.caffeine)||0),0);
+    const fl = dayE.filter(e=>e.type==="drink").reduce((s,e)=>s+(parseFloat(e.volume)||0),0);
+    const tags = [...new Set(dayE.flatMap(e=>e.healthTags||[]))];
+    let t = "DAILY NUTRITION REPORT\n"+fmtDate(date)+"  -  Nourish Food Log\n"+"=".repeat(36)+"\n\nTOTALS\n";
+    t += "Calories   "+Math.round(tot.calories)+" kcal\nProtein    "+tot.protein.toFixed(1)+" g\nCarbs      "+tot.carbs.toFixed(1)+" g\nFat        "+tot.fat.toFixed(1)+" g\nFiber      "+tot.fiber.toFixed(1)+" g\n";
+    if (caf>0) t += "Caffeine   "+Math.round(caf)+" mg\n";
+    if (fl>0) t += "Fluids     "+fl.toFixed(0)+" oz\n";
+    if (tags.length) { t += "\nHEALTH FLAGS\n"; tags.forEach(x => { const h=HEALTH_TAGS[x]; if(h) t+="- "+h.label+"\n"; }); }
+    t += "\nFOOD & DRINK LOG\n"+"=".repeat(36)+"\n";
+    dayE.forEach(e => {
+      t += "\n"+e.time+"  "+(e.type==="drink"?"[drink]":e.type==="meal"?"[meal]":"[food]")+" "+e.food;
+      if (e.type!=="meal") t += " ("+e.serving+" "+e.unit+")";
+      t += "\n   "+Math.round(e.calories)+" kcal | "+parseFloat(e.protein).toFixed(1)+"g P | "+parseFloat(e.carbs).toFixed(1)+"g C | "+parseFloat(e.fat).toFixed(1)+"g F";
+      if (parseFloat(e.fiber)>0) t += " | "+parseFloat(e.fiber).toFixed(1)+"g fiber";
+      if (parseFloat(e.caffeine)>0) t += " | "+Math.round(e.caffeine)+"mg caffeine";
+      if (e.type==="meal" && e.notes) t += "\n   Ingredients: "+e.notes;
+      else if (e.notes) t += "\n   Note: "+e.notes;
+      t += "\n";
+    });
+    return t;
+  }
+
+  const dayEntries = entries.filter(e => e.date===selectedDate);
+  const totals = MACROS.reduce((acc,m)=>{acc[m]=dayEntries.reduce((s,e)=>s+(parseFloat(e[m])||0),0);return acc;},{});
+  const totalCaffeine = dayEntries.reduce((s,e)=>s+(parseFloat(e.caffeine)||0),0);
+  const totalFluids = dayEntries.filter(e=>e.type==="drink").reduce((s,e)=>s+(parseFloat(e.volume)||0),0);
+  const allDates = [...new Set(entries.map(e=>e.date))].sort().reverse();
+  const allDayTags = [...new Set(dayEntries.flatMap(e=>e.healthTags||[]))];
+  const mealTotals = sumMacros(mealIngredients);
+  function getSuggestions(query) {
+    const q = (query||"").toLowerCase().trim(); if (q.length<1) return [];
+    const lib = savedFoods.filter(f=>f.name.toLowerCase().includes(q)).map(f=>({kind:"lib",name:f.name,unit:f.servingLabel,serving:f.defaultServing||"1",calories:f.calories}));
+    const bi = BUILTIN_FOODS.filter(b=>(b.name.toLowerCase().includes(q)||b.m.some(t=>t.includes(q)||q.includes(t)))&&!savedFoods.some(s=>s.name.toLowerCase()===b.name.toLowerCase())).map(b=>({kind:"builtin",name:b.name,unit:b.unit,serving:"1",calories:b.calories}));
+    const seen = new Set(); return [...lib,...bi].filter(x=>{const k=x.name.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;}).slice(0,6);
+  }
+  const foodSuggestions = sugOpen ? getSuggestions(form.food) : [];
+  const ingSuggestions = ingSugOpen ? getSuggestions(ingInput) : [];
+  const chartData = allDates.slice(0,14).reverse().map(date => ({ date: new Date(date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}), value: Math.round(entries.filter(e=>e.date===date).reduce((s,e)=>s+(parseFloat(e[chartMacro])||0),0)*10)/10 }));
+
+  const IS = { width:"100%", background:"#fff", border:"1px solid #E0D8CC", borderRadius:10, color:"#2A2622", padding:"11px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
+  const LB = { display:"block", fontSize:10, color:"#A89F93", letterSpacing:1.2, textTransform:"uppercase", fontWeight:600, marginBottom:5 };
+  const CARD = { background:"#fff", border:"1px solid #ECE6DD", borderRadius:13, padding:"12px 14px", marginBottom:8 };
+  const CL = { fontSize:10, color:"#A89F93", letterSpacing:1.4, textTransform:"uppercase", fontWeight:600, marginBottom:2 };
+  const EMPTY = { color:"#C9C0B4", textAlign:"center", padding:"44px 0", fontSize:13 };
+  const tagPill = (t,sm) => ({ fontSize: sm?10:10.5, padding: sm?"2px 7px":"4px 9px", borderRadius:50, background:t.bg, color:t.color, fontWeight:600 });
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#FAF7F2", color:"#2A2622", fontFamily:"'DM Sans', sans-serif", paddingBottom:90 }}>
+      <div style={{ padding:"22px 18px 14px", background:"#fff", borderBottom:"1px solid #ECE6DD", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
+          <span style={{ fontFamily:"'Fraunces', serif", fontSize:27, color:"#E8633A", fontWeight:500 }}>nourish</span>
+          <span style={{ fontSize:10, color:"#A89F93", letterSpacing:2, textTransform:"uppercase", fontWeight:600 }}>food log</span>
+        </div>
+        <button onClick={()=>setImportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:9, padding:"8px 11px", cursor:"pointer", fontSize:11, fontWeight:700 }}>\u2B07 Import</button>
+      </div>
+
+      <div style={{ display:"flex", background:"#fff", borderBottom:"1px solid #ECE6DD", position:"sticky", top:0, zIndex:10 }}>
+        {["log","today","library","history"].map(t => (
+          <button key={t} onClick={()=>setTab(t)} style={{ flex:1, padding:"13px 0", border:"none", background:"transparent", color: tab===t?"#E8633A":"#B0A89C", fontSize:10.5, letterSpacing:1.4, textTransform:"uppercase", fontWeight:700, cursor:"pointer", borderBottom: tab===t?"2px solid #E8633A":"2px solid transparent" }}>{t}</button>
+        ))}
+      </div>
+
+      <div style={{ padding:"16px 16px 0" }}>
+        {tab==="log" && (
+          <div>
+            <div style={{ display:"flex", background:"#fff", borderRadius:13, padding:4, marginBottom:16, gap:3, border:"1px solid #ECE6DD" }}>
+              {[["food","\uD83C\uDF7D Food"],["drink","\uD83E\uDD64 Drink"],["meal","\uD83C\uDF71 Meal"]].map(([t,lbl]) => (
+                <button key={t} onClick={()=>setEntryType(t)} style={{ flex:1, padding:"9px 4px", border:"none", borderRadius:9, background: entryType===t?"#E8633A":"transparent", color: entryType===t?"#fff":"#9A9085", fontWeight:600, fontSize:12.5, cursor:"pointer" }}>{lbl}</button>
+              ))}
+            </div>
+
+            {entryType==="meal" ? (
+              <div>
+                <label style={LB}>Meal name</label>
+                <input value={mealName} onChange={e=>setMealName(e.target.value)} placeholder="e.g. PB&J Wrap" style={{...IS, marginBottom:14}} />
+                <div style={{ borderTop:"1px solid #ECE6DD", paddingTop:14, marginBottom:10 }}>
+                  <div style={{ fontSize:11, color:"#9A9085", letterSpacing:1.2, textTransform:"uppercase", fontWeight:600, marginBottom:10 }}>Add ingredient</div>
+                  <input value={ingInput} onChange={e=>{setIngInput(e.target.value);setIngSugOpen(true);}} onKeyDown={e=>e.key==="Enter"&&handleAddIngredient()} placeholder="e.g. tortilla, peanut butter" style={{...IS, marginBottom: ingSuggestions.length?6:8}} />
+                  {ingSuggestions.length>0 && (
+                    <div style={{ background:"#fff", border:"1px solid #E0D8CC", borderRadius:11, marginBottom:8, overflow:"hidden", boxShadow:"0 4px 16px rgba(42,38,34,0.08)" }}>
+                      {ingSuggestions.map((s,i)=>(<button key={i} onClick={()=>{setIngInput(s.name);setIngUnit(s.unit);setIngServing(s.serving);setIngSugOpen(false);}} style={{ display:"flex", width:"100%", justifyContent:"space-between", alignItems:"center", padding:"9px 13px", background:"transparent", border:"none", borderBottom: i<ingSuggestions.length-1?"1px solid #F2EDE5":"none", color:"#2A2622", cursor:"pointer", textAlign:"left", fontSize:13 }}><span style={{fontWeight:500}}>{s.name}</span><span style={{fontSize:11, color: s.kind==="lib"?"#1F8C82":"#A89F93"}}>{s.kind==="lib"?"\u2605 library":s.calories+" kcal"}</span></button>))}
+                    </div>
+                  )}
+                  <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+                    <input type="number" value={ingServing} onChange={e=>setIngServing(e.target.value)} style={{...IS, width:64}} min="0.1" step="0.5" />
+                    <select value={ingUnit} onChange={e=>setIngUnit(e.target.value)} style={{...IS, flex:1}}>{["serving","tbsp","tsp","cup","oz","g","slice","piece"].map(u=><option key={u} value={u}>{u}</option>)}</select>
+                    <button onClick={handleAddIngredient} disabled={ingLoading||!ingInput.trim()} style={{ padding:"0 14px", background: ingLoading?"#F0EBE3":"#EAF6F4", border:"1px solid "+(ingLoading?"#E0D8CC":"#2BA89E"), color: ingLoading?"#B0A89C":"#1F8C82", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>{ingLoading?"\u2026":"+ Add"}</button>
+                  </div>
+                </div>
+                {mealIngredients.length>0 && (
+                  <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:13, padding:13, marginBottom:14 }}>
+                    {mealIngredients.map((ing,idx)=>(<div key={ing.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom: idx<mealIngredients.length-1?"1px solid #F2EDE5":"none" }}><div><span style={{fontSize:13,fontWeight:500}}>{ing.name}</span><span style={{fontSize:11,color:"#A89F93",marginLeft:6}}>{ing.serving} {ing.unit}</span></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,color:"#E8633A",fontWeight:600}}>{Math.round(ing.calories)} kcal</span><button onClick={()=>setMealIngredients(p=>p.filter(i=>i.id!==ing.id))} style={{background:"transparent",border:"none",color:"#C9C0B4",cursor:"pointer",fontSize:13}}>\u2715</button></div></div>))}
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid #ECE6DD", display:"flex", gap:11, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:11,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?Math.round(mealTotals[m]):mealTotals[m]?.toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}</div>
+                  </div>
+                )}
+                <button onClick={handleLogMeal} disabled={!mealIngredients.length||!mealName.trim()} style={{ width:"100%", padding:"14px", border:"none", borderRadius:12, fontSize:14, fontWeight:600, cursor:"pointer", background:(!mealIngredients.length||!mealName.trim())?"#F0EBE3":"#E8633A", color:(!mealIngredients.length||!mealName.trim())?"#C9C0B4":"#fff" }}>Log Meal ({mealIngredients.length})</button>
+              </div>
+            ) : (
+              <div>
+                <label style={LB}>What did you {entryType==="drink"?"drink":"eat"}?</label>
+                <div style={{ display:"flex", gap:8, marginBottom: foodSuggestions.length?0:10 }}>
+                  <input value={form.food} onChange={e=>{setForm({...form,food:e.target.value});setSugOpen(true);setShowSaved(false);}} onKeyDown={e=>e.key==="Enter"&&handleLog()} placeholder={entryType==="drink"?"e.g. Liquid IV, coffee":"e.g. yogurt, chicken"} style={{...IS, flex:1}} />
+                  <button onClick={()=>{setShowSaved(!showSaved);setSugOpen(false);}} style={{ background: showSaved?"#FDEEE8":"#fff", border:"1px solid "+(showSaved?"#E8633A":"#E0D8CC"), color:"#E8633A", borderRadius:10, padding:"0 12px", cursor:"pointer", fontSize:16 }}>\u2606</button>
+                </div>
+                {foodSuggestions.length>0 && (
+                  <div style={{ background:"#fff", border:"1px solid #E0D8CC", borderRadius:11, margin:"6px 0 10px", overflow:"hidden", boxShadow:"0 4px 16px rgba(42,38,34,0.08)" }}>
+                    {foodSuggestions.map((s,i)=>(<button key={i} onClick={()=>{setForm(v=>({...v,food:s.name,unit:s.unit,serving:s.serving}));setSugOpen(false);}} style={{ display:"flex", width:"100%", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"transparent", border:"none", borderBottom: i<foodSuggestions.length-1?"1px solid #F2EDE5":"none", color:"#2A2622", cursor:"pointer", textAlign:"left", fontSize:13 }}><span style={{fontWeight:500}}>{s.name}</span><span style={{fontSize:11, color: s.kind==="lib"?"#1F8C82":"#A89F93"}}>{s.kind==="lib"?"\u2605 library":s.calories+" kcal"}</span></button>))}
+                  </div>
+                )}
+                {showSaved && (
+                  <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:11, marginBottom:10, overflow:"hidden", maxHeight:190, overflowY:"auto" }}>
+                    {savedFoods.length===0 ? <div style={{ padding:"12px 14px", color:"#B0A89C", fontSize:12 }}>Library is empty.</div> : savedFoods.map(f=>(<button key={f.id} onClick={()=>{setForm(v=>({...v,food:f.name,unit:f.servingLabel,serving:f.defaultServing||"1"}));setShowSaved(false);}} style={{ display:"block", width:"100%", padding:"10px 14px", background:"transparent", border:"none", borderBottom:"1px solid #F2EDE5", color:"#2A2622", cursor:"pointer", textAlign:"left", fontSize:13 }}><span style={{fontWeight:500}}>{f.name}</span><span style={{color:"#A89F93",marginLeft:8,fontSize:11}}>{f.calories} kcal / {f.servingLabel}</span></button>))}
+                  </div>
+                )}
+                <label style={LB}>Extra details (optional)</label>
+                <input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="e.g. with olive oil, low fat" style={{...IS, marginBottom:10}} />
+                <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+                  {entryType==="drink" ? (
+                    <div style={{ flex:1.5 }}><label style={LB}>Volume</label><div style={{display:"flex",gap:4}}><input type="number" value={form.volume} onChange={e=>setForm({...form,volume:e.target.value})} placeholder="12" style={{...IS, flex:1}} /><select value={form.volumeUnit} onChange={e=>setForm({...form,volumeUnit:e.target.value})} style={{...IS, width:56}}>{["oz","ml","cup"].map(u=><option key={u} value={u}>{u}</option>)}</select></div></div>
+                  ) : (
+                    <React.Fragment>
+                      <div style={{ flex:1 }}><label style={LB}>Servings</label><input type="number" value={form.serving} onChange={e=>setForm({...form,serving:e.target.value})} style={IS} min="0.1" step="0.5" /></div>
+                      <div style={{ flex:1 }}><label style={LB}>Unit</label><select value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})} style={IS}>{["serving","cup","oz","g","piece","slice","tbsp","tsp","bowl","plate"].map(u=><option key={u} value={u}>{u}</option>)}</select></div>
+                    </React.Fragment>
+                  )}
+                  <div style={{ flex:1 }}><label style={LB}>Time</label><input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})} style={IS} /></div>
+                </div>
+                <button onClick={handleLog} disabled={loading} style={{ width:"100%", padding:"14px", border:"none", borderRadius:12, fontSize:14, fontWeight:600, cursor:"pointer", background: loading?"#F0EBE3":"#E8633A", color: loading?"#C9C0B4":"#fff" }}>{loading?"\u2726 Estimating\u2026":"Log "+(entryType==="drink"?"Drink":"Food")}</button>
+                {autoSavePrompt && (
+                  <div style={{ marginTop:14, background:"#fff", border:"1px solid #F2C9B8", borderRadius:13, padding:14 }}>
+                    <div style={{ fontSize:13, marginBottom:10 }}>You've logged <strong style={{color:"#E8633A"}}>{autoSavePrompt.food}</strong> a few times \u2014 save to library?</div>
+                    <div style={{ display:"flex", gap:8 }}><button onClick={handleAutoSave} style={{ flex:1, padding:"9px", background:"#E8633A", border:"none", borderRadius:8, color:"#fff", fontWeight:600, cursor:"pointer", fontSize:12 }}>Save to Library</button><button onClick={()=>setAutoSavePrompt(null)} style={{ padding:"9px 12px", background:"#F2EDE5", border:"none", borderRadius:8, color:"#9A9085", cursor:"pointer" }}>Dismiss</button></div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab==="today" && (
+          <div>
+            <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
+              <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} style={{...IS, flex:1}} />
+              <button onClick={()=>setExportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:10, padding:"10px 13px", cursor:"pointer", fontSize:11.5, fontWeight:700 }}>\u2191 Export</button>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+              <div style={{ gridColumn:"1 / -1", background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"14px 16px" }}><div style={CL}>calories</div><div style={{ fontSize:33, fontWeight:300, color:"#E8633A" }}>{Math.round(totals.calories)}<span style={{fontSize:12,color:"#C9C0B4",marginLeft:3}}>kcal</span></div></div>
+              {["protein","carbs","fat","fiber"].map(m=>(<div key={m} style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>{m}</div><div style={{fontSize:21,fontWeight:300,color:MACRO_COLORS[m]}}>{totals[m].toFixed(1)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>g</span></div></div>))}
+              {totalCaffeine>0 && <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>\u2615 caffeine</div><div style={{fontSize:21,fontWeight:300,color:"#8B6914"}}>{Math.round(totalCaffeine)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>mg</span></div></div>}
+              {totalFluids>0 && <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>\uD83D\uDCA7 fluids</div><div style={{fontSize:21,fontWeight:300,color:"#3B9BC4"}}>{totalFluids.toFixed(0)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>oz</span></div></div>}
+            </div>
+            {allDayTags.length>0 && <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:14 }}>{allDayTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t)}>{t.icon} {t.label}</span>:null;})}</div>}
+            {dayEntries.length===0 ? <div style={EMPTY}>Nothing logged yet.</div> : dayEntries.sort((a,b)=>a.time.localeCompare(b.time)).map(e=>(
+              <div key={e.id} style={CARD}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                  <div style={{ flex:1 }}><div style={{fontWeight:500,fontSize:13.5}}>{e.type==="drink"?"\uD83E\uDD64 ":e.type==="meal"?"\uD83C\uDF71 ":""}{e.food}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>{e.time} \u00B7 {e.type==="drink"&&e.volume?e.volume+" "+e.unit:e.type==="meal"?(e.ingredients?e.ingredients.length:0)+" ingredients":e.serving+" "+e.unit}{e.source==="ai"&&<span style={{color:"#D9A48F",marginLeft:5}}>\u2726 AI</span>}</div>{e.type==="meal"&&e.notes&&<div style={{fontSize:11,color:"#B0A89C",marginTop:3}}>{e.notes}</div>}</div>
+                  <button onClick={()=>setDeleteConfirm(e.id)} style={{ background:"transparent", border:"none", color:"#C9C0B4", cursor:"pointer", fontSize:13 }}>\u2715</button>
+                </div>
+                <div style={{ display:"flex", gap:8, marginTop:8, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:10.5,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?Math.round(e[m]):parseFloat(e[m]).toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}{parseFloat(e.caffeine)>0&&<span style={{fontSize:10.5,color:"#8B6914",fontWeight:600}}>\u2615 {Math.round(e.caffeine)}mg</span>}</div>
+                {(e.healthTags||[]).length>0 && <div style={{ display:"flex", gap:4, marginTop:6, flexWrap:"wrap" }}>{e.healthTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}
+                {deleteConfirm===e.id && <div style={{ marginTop:10, display:"flex", gap:8 }}><button onClick={()=>handleDeleteEntry(e.id)} style={{ flex:1, padding:"7px", background:"#FBE9E9", border:"1px solid #D14343", borderRadius:7, color:"#C0392B", cursor:"pointer", fontSize:12, fontWeight:600 }}>Delete</button><button onClick={()=>setDeleteConfirm(null)} style={{ flex:1, padding:"7px", background:"#F2EDE5", border:"none", borderRadius:7, color:"#9A9085", cursor:"pointer", fontSize:12 }}>Cancel</button></div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab==="library" && (
+          <div>
+            <p style={{ color:"#9A9085", fontSize:12, marginTop:0, marginBottom:14, lineHeight:1.5 }}>Type a name and tap <strong style={{color:"#1F8C82"}}>Look Up</strong> for AI nutrition \u2014 or type the numbers off the label. Set your usual serving so it pre-fills every time.</p>
+            <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:15, padding:14, marginBottom:18 }}>
+              <div style={{ fontWeight:600, marginBottom:12, fontSize:13, color: editingFood?"#1F8C82":"#2A2622" }}>{editingFood?"Editing: "+editingFood.name:"Add to Library"}</div>
+              <label style={LB}>Name</label>
+              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                <input value={newFood.name} onChange={e=>setNewFood({...newFood,name:e.target.value})} placeholder="e.g. Siggi's vanilla, Liquid IV" style={{...IS, flex:1}} />
+                <button onClick={handleLookupFood} disabled={foodLookupLoading} style={{ background: foodLookupLoading?"#F0EBE3":"#EAF6F4", border:"1px solid "+(foodLookupLoading?"#E0D8CC":"#2BA89E"), color: foodLookupLoading?"#B0A89C":"#1F8C82", borderRadius:10, padding:"0 13px", cursor:"pointer", fontSize:11.5, fontWeight:700, whiteSpace:"nowrap" }}>{foodLookupLoading?"\u2026":"Look Up"}</button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                <div><label style={LB}>Serving label</label><input value={newFood.servingLabel} onChange={e=>setNewFood({...newFood,servingLabel:e.target.value})} placeholder="packet, cup" style={IS} /></div>
+                <div><label style={{...LB, color:"#E8633A"}}>My usual serving \u2726</label><input type="number" value={newFood.defaultServing} onChange={e=>setNewFood({...newFood,defaultServing:e.target.value})} placeholder="1" style={{...IS, borderColor:"#F2C9B8"}} min="0.1" step="0.25" /></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                {MACROS.map(m=><div key={m}><label style={LB}>{m} ({MACRO_UNITS[m]})</label><input type="number" value={newFood[m]} onChange={e=>setNewFood({...newFood,[m]:e.target.value})} placeholder="0" style={IS} min="0" /></div>)}
+                <div><label style={LB}>Caffeine (mg)</label><input type="number" value={newFood.caffeine} onChange={e=>setNewFood({...newFood,caffeine:e.target.value})} placeholder="0" style={IS} min="0" /></div>
+                <div><label style={LB}>Sodium (mg)</label><input type="number" value={newFood.sodium} onChange={e=>setNewFood({...newFood,sodium:e.target.value})} placeholder="0" style={IS} min="0" /></div>
+              </div>
+              {(newFood.healthTags||[]).length>0 && <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:10 }}>{newFood.healthTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={handleSaveFood} style={{ flex:1, padding:"11px", background:"#E8633A", border:"none", borderRadius:10, color:"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>{editingFood?"Update":"Save to Library"}</button>
+                {editingFood && <button onClick={()=>{setEditingFood(null);setNewFood({...EMPTY_FOOD});}} style={{ padding:"11px 13px", background:"#F2EDE5", border:"none", borderRadius:10, color:"#9A9085", cursor:"pointer" }}>Cancel</button>}
+              </div>
+            </div>
+            {savedFoods.length===0 ? <div style={EMPTY}>Library empty. Add your go-to foods above.</div> : savedFoods.map(f=>(
+              <div key={f.id} style={CARD}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}><div><div style={{fontWeight:500,fontSize:13.5}}>{f.name}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>per {f.servingLabel}{parseFloat(f.defaultServing)!==1&&<span style={{color:"#E8633A",marginLeft:6}}>my: {f.defaultServing}\u00D7</span>}</div></div><div style={{display:"flex",gap:8}}><button onClick={()=>{setEditingFood(f);setNewFood({name:f.name,calories:f.calories,fat:f.fat,protein:f.protein,carbs:f.carbs,fiber:f.fiber,caffeine:f.caffeine||0,sodium:f.sodium||0,servingLabel:f.servingLabel,defaultServing:f.defaultServing||"1",healthTags:f.healthTags||[]});}} style={{background:"transparent",border:"none",color:"#E8633A",cursor:"pointer",fontSize:12,fontWeight:600}}>edit</button><button onClick={()=>handleDeleteFood(f.id)} style={{background:"transparent",border:"none",color:"#C9C0B4",cursor:"pointer",fontSize:13}}>\u2715</button></div></div>
+                <div style={{ display:"flex", gap:8, marginTop:7, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:10.5,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?f[m]:parseFloat(f[m]).toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}{parseFloat(f.caffeine)>0&&<span style={{fontSize:10.5,color:"#8B6914",fontWeight:600}}>\u2615 {f.caffeine}mg</span>}</div>
+                {(f.healthTags||[]).length>0 && <div style={{ display:"flex", gap:4, marginTop:6, flexWrap:"wrap" }}>{f.healthTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab==="history" && (
+          <div>
+            <div style={{ display:"flex", background:"#fff", borderRadius:11, padding:4, marginBottom:16, border:"1px solid #ECE6DD" }}>{[["list","\uD83D\uDCCB List"],["charts","\uD83D\uDCC8 Charts"]].map(([v,lbl])=>(<button key={v} onClick={()=>setHistoryView(v)} style={{ flex:1, padding:"8px", border:"none", borderRadius:8, background: historyView===v?"#E8633A":"transparent", color: historyView===v?"#fff":"#9A9085", fontWeight:700, fontSize:11, cursor:"pointer", textTransform:"uppercase", letterSpacing:1 }}>{lbl}</button>))}</div>
+            {historyView==="list" && (allDates.length===0 ? <div style={EMPTY}>No history yet.</div> : allDates.map(date=>{const items=entries.filter(e=>e.date===date);const cals=items.reduce((s,e)=>s+(parseFloat(e.calories)||0),0);const prot=items.reduce((s,e)=>s+(parseFloat(e.protein)||0),0);const tags=[...new Set(items.flatMap(e=>e.healthTags||[]))].slice(0,4);return(<div key={date} onClick={()=>{setSelectedDate(date);setTab("today");}} style={{...CARD, cursor:"pointer"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:500,fontSize:14}}>{fmtDate(date)}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>{items.length} entries</div></div><div style={{textAlign:"right"}}><div style={{color:"#E8633A",fontWeight:600,fontSize:14}}>{Math.round(cals)} kcal</div><div style={{color:"#1F8C82",fontSize:11}}>{prot.toFixed(0)}g protein</div></div></div>{tags.length>0&&<div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap"}}>{tags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}</div>);}))}
+            {historyView==="charts" && (
+              <div>
+                <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:16 }}>{MACROS.map(m=><button key={m} onClick={()=>setChartMacro(m)} style={{ padding:"5px 11px", borderRadius:50, border:"1px solid "+(chartMacro===m?MACRO_COLORS[m]:"#E0D8CC"), background: chartMacro===m?MACRO_COLORS[m]+"1A":"#fff", color: chartMacro===m?MACRO_COLORS[m]:"#9A9085", fontSize:10, cursor:"pointer", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>{m}</button>)}</div>
+                {chartData.length<2 ? <div style={EMPTY}>Log 2+ days to see charts.</div> : (
+                  <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"14px 8px 12px" }}>
+                    <div style={{ fontSize:10, color:"#A89F93", letterSpacing:1.5, textTransform:"uppercase", fontWeight:600, marginBottom:10, paddingLeft:6 }}>{chartMacro} \u2014 last {chartData.length} days</div>
+                    <BarChartSimple data={chartData} color={MACRO_COLORS[chartMacro]} unit={MACRO_UNITS[chartMacro]} />
+                    {(()=>{const vals=chartData.map(d=>d.value).filter(v=>v>0);if(vals.length<2)return null;const avg=vals.reduce((a,b)=>a+b,0)/vals.length;return(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:12,padding:"0 8px"}}>{[["avg",avg],["high",Math.max(...vals)],["low",Math.min(...vals)]].map(([lbl,val])=>(<div key={lbl} style={{textAlign:"center"}}><div style={{fontSize:9,color:"#B0A89C",textTransform:"uppercase",letterSpacing:1,fontWeight:600}}>{lbl}</div><div style={{fontSize:16,color:MACRO_COLORS[chartMacro],fontWeight:400}}>{Math.round(val*10)/10}</div><div style={{fontSize:9,color:"#C9C0B4"}}>{MACRO_UNITS[chartMacro]}</div></div>))}</div>);})()}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {importModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(42,38,34,0.55)", zIndex:100, display:"flex", flexDirection:"column", padding:14 }}>
+          <div style={{ background:"#fff", borderRadius:18, flex:1, display:"flex", flexDirection:"column", overflow:"hidden", border:"1px solid #ECE6DD" }}>
+            <div style={{ padding:"15px 16px", borderBottom:"1px solid #ECE6DD", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{fontWeight:600,fontSize:13}}>Import</span><button onClick={()=>{setImportModal(false);setImportText("");}} style={{background:"transparent",border:"none",color:"#A89F93",fontSize:17,cursor:"pointer"}}>\u2715</button></div>
+            <div style={{ flex:1, overflow:"auto", padding:16 }}><p style={{fontSize:12.5,color:"#9A9085",marginTop:0,marginBottom:14,lineHeight:1.5}}>Paste a code (from Claude in chat, or one you saved). It can add foods to your library and/or log entries.</p><textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder={'{"library":[...]}'} style={{...IS, minHeight:150, fontFamily:"monospace", fontSize:12, resize:"vertical"}} /></div>
+            <div style={{ padding:"12px 14px", borderTop:"1px solid #ECE6DD" }}><button onClick={handleImport} style={{ width:"100%", padding:"12px", background:"#E8633A", border:"none", borderRadius:11, color:"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>Import</button></div>
+          </div>
+        </div>
+      )}
+
+      {exportModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(42,38,34,0.55)", zIndex:100, display:"flex", flexDirection:"column", padding:14 }}>
+          <div style={{ background:"#fff", borderRadius:18, flex:1, display:"flex", flexDirection:"column", overflow:"hidden", border:"1px solid #ECE6DD" }}>
+            <div style={{ padding:"15px 16px", borderBottom:"1px solid #ECE6DD", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{fontWeight:600,fontSize:13}}>Export \u2014 {fmtDate(selectedDate)}</span><button onClick={()=>{setExportModal(false);setExportCopied(false);}} style={{background:"transparent",border:"none",color:"#A89F93",fontSize:17,cursor:"pointer"}}>\u2715</button></div>
+            <div style={{ flex:1, overflow:"auto", padding:14, background:"#FAF7F2" }}><pre style={{ fontFamily:"monospace", fontSize:11.5, color:"#5A5249", lineHeight:1.7, whiteSpace:"pre-wrap", margin:0 }}>{buildExportText(selectedDate)}</pre></div>
+            <div style={{ padding:"12px 14px", borderTop:"1px solid #ECE6DD" }}><button onClick={()=>{navigator.clipboard.writeText(buildExportText(selectedDate)).then(()=>{setExportCopied(true);setTimeout(()=>setExportCopied(false),2500);});}} style={{ width:"100%", padding:"12px", background: exportCopied?"#EAF6F4":"#E8633A", border:"none", borderRadius:11, color: exportCopied?"#1F8C82":"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>{exportCopied?"\u2713 Copied":"Copy to Clipboard"}</button></div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div onClick={()=>setToast(null)} style={{ position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)", background: toast.type==="error"?"#FBE9E9":"#EAF6F4", color: toast.type==="error"?"#C0392B":"#1F8C82", padding:"10px 16px", borderRadius:12, fontSize:12, fontWeight:500, boxShadow:"0 6px 24px rgba(42,38,34,0.18)", border:"1px solid "+(toast.type==="error"?"#F2C2C2":"#B8E2DC"), zIndex:110, maxWidth:"92vw", textAlign:"center", cursor:"pointer", lineHeight:1.4 }}>{toast.msg}</div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
