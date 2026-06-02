@@ -27,6 +27,7 @@ const { useState, useEffect } = React;
 /* ============ CONFIG ============ */
 const STORAGE_KEY = "nourish-log-v2";
 const FOODS_KEY = "nourish-foods-v2";
+const MEALS_KEY = "nourish-meals-v2";
 const MACROS = ["calories", "fat", "protein", "carbs", "fiber"];
 const MACRO_UNITS = { calories: "kcal", fat: "g", protein: "g", carbs: "g", fiber: "g" };
 const MACRO_COLORS = { calories: "#E8633A", fat: "#D4943A", protein: "#2BA89E", carbs: "#3B9BC4", fiber: "#5BA86B" };
@@ -157,6 +158,8 @@ function App() {
   const [autoSavePrompt, setAutoSavePrompt] = useState(null);
   const [mealName, setMealName] = useState("");
   const [mealIngredients, setMealIngredients] = useState([]);
+  const [savedMeals, setSavedMeals] = useState([]);
+  const [editingMealId, setEditingMealId] = useState(null);
   const [ingInput, setIngInput] = useState("");
   const [ingServing, setIngServing] = useState("1");
   const [ingUnit, setIngUnit] = useState("serving");
@@ -178,11 +181,13 @@ function App() {
   useEffect(() => {
     const e = loadLS(STORAGE_KEY); if (e) setEntries(e);
     const f = loadLS(FOODS_KEY); if (f) setSavedFoods(f);
+    const m = loadLS(MEALS_KEY); if (m) setSavedMeals(m);
   }, []);
 
   function showToast(msg, type) { setToast({ msg, type: type || "success" }); setTimeout(() => setToast(null), type === "error" ? 6000 : 3000); }
   function persistEntries(u) { setEntries(u); saveLS(STORAGE_KEY, u); }
   function persistFoods(u) { setSavedFoods(u); saveLS(FOODS_KEY, u); }
+  function persistMeals(u) { setSavedMeals(u); saveLS(MEALS_KEY, u); }
 
   async function handleLog() {
     if (!form.food.trim()) return showToast("Enter a name first", "error");
@@ -220,6 +225,37 @@ function App() {
     setIngLoading(false);
   }
 
+  function handleSaveMeal() {
+    if (!mealName.trim()) return showToast("Name your meal first", "error");
+    if (!mealIngredients.length) return showToast("Add an ingredient first", "error");
+    const name = mealName.trim();
+    // Editing an existing saved meal (by id) supports renaming.
+    if (editingMealId && savedMeals.some(m => m.id === editingMealId)) {
+      persistMeals(savedMeals.map(m => m.id === editingMealId ? { id: m.id, name, ingredients: mealIngredients } : m));
+      showToast("Meal updated");
+      return;
+    }
+    const idx = savedMeals.findIndex(m => m.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) {
+      persistMeals(savedMeals.map((m,i) => i===idx ? { id: m.id, name, ingredients: mealIngredients } : m));
+      setEditingMealId(savedMeals[idx].id);
+      showToast("Meal updated");
+    } else {
+      const meal = { id: Date.now(), name, ingredients: mealIngredients };
+      persistMeals([...savedMeals, meal]);
+      setEditingMealId(meal.id);
+      showToast('"' + name + '" saved to meals');
+    }
+  }
+  function loadMeal(meal) {
+    setMealName(meal.name);
+    setMealIngredients(meal.ingredients.map(i => ({ ...i, id: Date.now() + Math.random() })));
+    setEditingMealId(meal.id);
+    showToast("Editing \"" + meal.name + "\" \u2014 change it, then Update");
+  }
+  function newMeal() { setMealName(""); setMealIngredients([]); setEditingMealId(null); }
+  function deleteMeal(id) { persistMeals(savedMeals.filter(m => m.id !== id)); if (id===editingMealId) setEditingMealId(null); showToast("Meal removed"); }
+
   function handleLogMeal() {
     if (!mealName.trim()) return showToast("Name your meal first", "error");
     if (!mealIngredients.length) return showToast("Add an ingredient first", "error");
@@ -228,7 +264,7 @@ function App() {
     const list = mealIngredients.map(i => i.name+" ("+i.serving+" "+i.unit+")").join(", ");
     const entry = { id: Date.now(), date: selectedDate, type: "meal", food: mealName, time: getNow(), serving: "1", unit: "meal", notes: list, source: "meal", ...totals, healthTags: allTags, ingredients: mealIngredients };
     persistEntries([...entries, entry]);
-    setMealName(""); setMealIngredients([]); setEntryType("food");
+    setMealName(""); setMealIngredients([]); setEditingMealId(null); setEntryType("food");
     showToast("Meal logged");
   }
 
@@ -269,15 +305,17 @@ function App() {
     let af = 0, ae = 0; const nf = [...savedFoods]; const ne = [...entries];
     if (Array.isArray(data.library)) data.library.forEach((f,i) => { if (!f.name) return; const obj = { id: Date.now()+i, name: f.name, calories: parseFloat(f.calories)||0, fat: parseFloat(f.fat)||0, protein: parseFloat(f.protein)||0, carbs: parseFloat(f.carbs)||0, fiber: parseFloat(f.fiber)||0, caffeine: parseFloat(f.caffeine)||0, sodium: parseFloat(f.sodium)||0, servingLabel: f.servingLabel||f.unit||"serving", defaultServing: (f.defaultServing??1).toString(), healthTags: Array.isArray(f.healthTags)?f.healthTags:[], keywords: Array.isArray(f.keywords)?f.keywords:[] }; const idx = nf.findIndex(x => x.name.toLowerCase()===f.name.toLowerCase()); if (idx>=0) { obj.id = nf[idx].id; nf[idx] = obj; } else { nf.push(obj); } af++; });
     if (Array.isArray(data.entries)) data.entries.forEach((e,i) => { if (!e.food) return; const eid = e.id || (Date.now()+1000+i); if (ne.some(x => x.id===eid)) return; ne.push({ id: eid, date: e.date||selectedDate, type: e.type||"food", food: e.food, time: e.time||getNow(), serving: (e.serving??1).toString(), unit: e.unit||"serving", volume: e.volume||"", notes: e.notes||"", source: e.source||"import", calories: parseFloat(e.calories)||0, fat: parseFloat(e.fat)||0, protein: parseFloat(e.protein)||0, carbs: parseFloat(e.carbs)||0, fiber: parseFloat(e.fiber)||0, caffeine: parseFloat(e.caffeine)||0, sodium: parseFloat(e.sodium)||0, healthTags: Array.isArray(e.healthTags)?e.healthTags:[], ingredients: Array.isArray(e.ingredients)?e.ingredients:undefined }); ae++; });
-    if (af===0 && ae===0) return showToast("Nothing to import", "error");
-    if (af) persistFoods(nf); if (ae) persistEntries(ne);
+    let am = 0; const nm = [...savedMeals];
+    if (Array.isArray(data.meals)) data.meals.forEach((m,i) => { if (!m.name || !Array.isArray(m.ingredients)) return; const obj = { id: Date.now()+2000+i, name: m.name, ingredients: m.ingredients }; const idx = nm.findIndex(x => x.name.toLowerCase()===m.name.toLowerCase()); if (idx>=0) { obj.id = nm[idx].id; nm[idx] = obj; } else { nm.push(obj); } am++; });
+    if (af===0 && ae===0 && am===0) return showToast("Nothing to import", "error");
+    if (af) persistFoods(nf); if (ae) persistEntries(ne); if (am) persistMeals(nm);
     setImportText(""); setImportModal(false);
-    const parts = []; if (ae) parts.push(ae+" logged"); if (af) parts.push(af+" to library");
+    const parts = []; if (ae) parts.push(ae+" logged"); if (af) parts.push(af+" to library"); if (am) parts.push(am+" meals");
     showToast("Imported: " + parts.join(", "));
   }
 
   function buildBackup() {
-    return JSON.stringify({ library: savedFoods, entries: entries });
+    return JSON.stringify({ library: savedFoods, entries: entries, meals: savedMeals });
   }
   function copyBackup() {
     const blob = buildBackup();
@@ -364,6 +402,19 @@ function App() {
               <div>
                 <label style={LB}>Meal name</label>
                 <input value={mealName} onChange={e=>setMealName(e.target.value)} placeholder="e.g. PB&J Wrap" style={{...IS, marginBottom:14}} />
+                {savedMeals.length>0 && (
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ fontSize:10, color:"#A89F93", letterSpacing:1.2, textTransform:"uppercase", fontWeight:600, marginBottom:7 }}>My saved meals</div>
+                    <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                      {savedMeals.map(m => (
+                        <span key={m.id} style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#fff", border:"1px solid #E0D8CC", borderRadius:50, padding:"6px 8px 6px 12px", fontSize:12.5 }}>
+                          <span onClick={()=>loadMeal(m)} style={{ cursor:"pointer", fontWeight:500 }}>🍱 {m.name}</span>
+                          <span onClick={()=>deleteMeal(m.id)} style={{ cursor:"pointer", color:"#C9C0B4", fontSize:13, lineHeight:1 }}>✕</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div style={{ borderTop:"1px solid #ECE6DD", paddingTop:14, marginBottom:10 }}>
                   <div style={{ fontSize:11, color:"#9A9085", letterSpacing:1.2, textTransform:"uppercase", fontWeight:600, marginBottom:10 }}>Add ingredient</div>
                   <input value={ingInput} onChange={e=>{setIngInput(e.target.value);setIngSugOpen(true);}} onKeyDown={e=>e.key==="Enter"&&handleAddIngredient()} placeholder="e.g. tortilla, peanut butter" style={{...IS, marginBottom: ingSuggestions.length?6:8}} />
@@ -384,7 +435,16 @@ function App() {
                     <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid #ECE6DD", display:"flex", gap:11, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:11,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?Math.round(mealTotals[m]):mealTotals[m]?.toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}</div>
                   </div>
                 )}
-                <button onClick={handleLogMeal} disabled={!mealIngredients.length||!mealName.trim()} style={{ width:"100%", padding:"14px", border:"none", borderRadius:12, fontSize:14, fontWeight:600, cursor:"pointer", background:(!mealIngredients.length||!mealName.trim())?"#F0EBE3":"#E8633A", color:(!mealIngredients.length||!mealName.trim())?"#C9C0B4":"#fff" }}>Log Meal ({mealIngredients.length})</button>
+                {editingMealId && savedMeals.some(m=>m.id===editingMealId) && (
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#EAF6F4", border:"1px solid #B8E2DC", borderRadius:10, padding:"9px 12px", marginBottom:12, fontSize:12, color:"#1F8C82" }}>
+                    <span>✎ Editing a saved meal — tap Update to save changes</span>
+                    <span onClick={newMeal} style={{ cursor:"pointer", fontWeight:600, whiteSpace:"nowrap", marginLeft:10 }}>↺ New</span>
+                  </div>
+                )}
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={handleSaveMeal} disabled={!mealIngredients.length||!mealName.trim()} style={{ padding:"14px 16px", border:"1px solid "+((!mealIngredients.length||!mealName.trim())?"#E0D8CC":"#2BA89E"), borderRadius:12, fontSize:14, fontWeight:600, cursor:"pointer", background:"#fff", color:(!mealIngredients.length||!mealName.trim())?"#C9C0B4":"#1F8C82", whiteSpace:"nowrap" }}>{editingMealId&&savedMeals.some(m=>m.id===editingMealId)?"★ Update":"★ Save"}</button>
+                  <button onClick={handleLogMeal} disabled={!mealIngredients.length||!mealName.trim()} style={{ flex:1, padding:"14px", border:"none", borderRadius:12, fontSize:14, fontWeight:600, cursor:"pointer", background:(!mealIngredients.length||!mealName.trim())?"#F0EBE3":"#E8633A", color:(!mealIngredients.length||!mealName.trim())?"#C9C0B4":"#fff" }}>Log Meal ({mealIngredients.length})</button>
+                </div>
               </div>
             ) : (
               <div>
@@ -521,7 +581,7 @@ function App() {
               <div style={{ background:"#FAF7F2", border:"1px solid #ECE6DD", borderRadius:13, padding:14, marginBottom:18 }}>
                 <div style={{ fontWeight:600, fontSize:13, marginBottom:6 }}>🛟 Back up everything</div>
                 <p style={{ fontSize:12, color:"#9A9085", marginTop:0, marginBottom:12, lineHeight:1.5 }}>Copies your whole library + every logged entry as one code. Paste it into your Notes or email it to yourself. To restore on a new phone, paste it into the box below and tap Restore.</p>
-                <div style={{ fontSize:11, color:"#B0A89C", marginBottom:10 }}>{savedFoods.length} foods · {entries.length} logged entries</div>
+                <div style={{ fontSize:11, color:"#B0A89C", marginBottom:10 }}>{savedFoods.length} foods · {savedMeals.length} saved meals · {entries.length} logged entries</div>
                 <button onClick={copyBackup} style={{ width:"100%", padding:"11px", background: backupCopied?"#EAF6F4":"#2BA89E", border:"none", borderRadius:10, color: backupCopied?"#1F8C82":"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>{backupCopied?"✓ Copied — now paste it somewhere safe":"Copy my backup"}</button>
               </div>
               <div style={{ fontWeight:600, fontSize:13, marginBottom:6 }}>📥 Restore / Import</div>
