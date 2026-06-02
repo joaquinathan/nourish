@@ -29,21 +29,21 @@ const MACROS = ["calories", "fat", "protein", "carbs", "fiber"];
 const MACRO_UNITS = { calories: "kcal", fat: "g", protein: "g", carbs: "g", fiber: "g" };
 const MACRO_COLORS = { calories: "#E8633A", fat: "#D4943A", protein: "#2BA89E", carbs: "#3B9BC4", fiber: "#5BA86B" };
 const HEALTH_TAGS = {
-  caffeine:      { label: "Caffeine",     color: "#8B6914", bg: "#FBF3DC", icon: "\u2615" },
-  electrolytes:  { label: "Electrolytes", color: "#2980B9", bg: "#E3F2FB", icon: "\u26A1" },
-  probiotic:     { label: "Probiotic",    color: "#4A9D5B", bg: "#E8F6EA", icon: "\uD83E\uDDA0" },
-  antioxidants:  { label: "Antioxidants", color: "#8E5CC4", bg: "#F2EAFB", icon: "\uD83E\uDED0" },
-  "high-sugar":  { label: "High Sugar",   color: "#D14343", bg: "#FBE9E9", icon: "\uD83C\uDF6C" },
-  "high-sodium": { label: "High Sodium",  color: "#B8901A", bg: "#FBF5DC", icon: "\uD83E\uDDC2" },
-  "high-fiber":  { label: "High Fiber",   color: "#4A9D5B", bg: "#E8F6EA", icon: "\uD83C\uDF3E" },
-  "high-protein":{ label: "High Protein", color: "#1F8C82", bg: "#E0F5F2", icon: "\uD83D\uDCAA" },
-  hydrating:     { label: "Hydrating",    color: "#3B9BC4", bg: "#E3F2FB", icon: "\uD83D\uDCA7" },
-  "omega-3":     { label: "Omega-3",      color: "#5BA86B", bg: "#E8F6EA", icon: "\uD83D\uDC1F" },
-  alcohol:       { label: "Alcohol",      color: "#A569BD", bg: "#F4ECFA", icon: "\uD83C\uDF77" },
-  "vitamin-c":   { label: "Vitamin C",    color: "#E67E22", bg: "#FDF0E3", icon: "\uD83C\uDF4A" },
+  caffeine:      { label: "Caffeine",     color: "#8B6914", bg: "#FBF3DC", icon: "☕" },
+  electrolytes:  { label: "Electrolytes", color: "#2980B9", bg: "#E3F2FB", icon: "⚡" },
+  probiotic:     { label: "Probiotic",    color: "#4A9D5B", bg: "#E8F6EA", icon: "🦠" },
+  antioxidants:  { label: "Antioxidants", color: "#8E5CC4", bg: "#F2EAFB", icon: "🫐" },
+  "high-sugar":  { label: "High Sugar",   color: "#D14343", bg: "#FBE9E9", icon: "🍬" },
+  "high-sodium": { label: "High Sodium",  color: "#B8901A", bg: "#FBF5DC", icon: "🧂" },
+  "high-fiber":  { label: "High Fiber",   color: "#4A9D5B", bg: "#E8F6EA", icon: "🌾" },
+  "high-protein":{ label: "High Protein", color: "#1F8C82", bg: "#E0F5F2", icon: "💪" },
+  hydrating:     { label: "Hydrating",    color: "#3B9BC4", bg: "#E3F2FB", icon: "💧" },
+  "omega-3":     { label: "Omega-3",      color: "#5BA86B", bg: "#E8F6EA", icon: "🐟" },
+  alcohol:       { label: "Alcohol",      color: "#A569BD", bg: "#F4ECFA", icon: "🍷" },
+  "vitamin-c":   { label: "Vitamin C",    color: "#E67E22", bg: "#FDF0E3", icon: "🍊" },
 };
 const TAG_LIST = Object.keys(HEALTH_TAGS).join(", ");
-const EMPTY_FOOD = { name: "", calories: "", fat: "", protein: "", carbs: "", fiber: "", servingLabel: "serving", defaultServing: "1", caffeine: "0", sodium: "0", healthTags: [] };
+const EMPTY_FOOD = { name: "", calories: "", fat: "", protein: "", carbs: "", fiber: "", servingLabel: "serving", defaultServing: "1", caffeine: "0", sodium: "0", healthTags: [], keywords: "" };
 const EMPTY_FORM = { food: "", time: "", serving: "1", unit: "serving", notes: "", volume: "", volumeUnit: "oz" };
 
 /* ============ BUILT-IN FOODS (instant, free, no AI needed) ============ */
@@ -164,6 +164,7 @@ function App() {
   const [exportCopied, setExportCopied] = useState(false);
   const [importModal, setImportModal] = useState(false);
   const [importText, setImportText] = useState("");
+  const [backupCopied, setBackupCopied] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editingFood, setEditingFood] = useState(null);
   const [newFood, setNewFood] = useState({ ...EMPTY_FOOD });
@@ -235,14 +236,14 @@ function App() {
     try {
       const d = await lookupFood(newFood.name);
       setNewFood(prev => ({ ...prev, calories: d.calories??"", fat: d.fat??"", protein: d.protein??"", carbs: d.carbs??"", fiber: d.fiber??"", caffeine: d.caffeine??"0", sodium: d.sodium??"0", servingLabel: d.servingUnit||"serving", defaultServing: (d.servingSize??1).toString(), healthTags: Array.isArray(d.healthTags)?d.healthTags:[] }));
-      showToast("Loaded \u2014 review & save");
+      showToast("Loaded — review & save");
     } catch (e) { showToast(e.message, "error"); }
     setFoodLookupLoading(false);
   }
 
   function handleSaveFood() {
     if (!newFood.name.trim() || !newFood.calories) return showToast("Name & calories required", "error");
-    const food = { id: editingFood?editingFood.id:Date.now(), name: newFood.name.trim(), calories: parseFloat(newFood.calories)||0, fat: parseFloat(newFood.fat)||0, protein: parseFloat(newFood.protein)||0, carbs: parseFloat(newFood.carbs)||0, fiber: parseFloat(newFood.fiber)||0, caffeine: parseFloat(newFood.caffeine)||0, sodium: parseFloat(newFood.sodium)||0, servingLabel: newFood.servingLabel||"serving", defaultServing: newFood.defaultServing||"1", healthTags: newFood.healthTags||[] };
+    const food = { id: editingFood?editingFood.id:Date.now(), name: newFood.name.trim(), calories: parseFloat(newFood.calories)||0, fat: parseFloat(newFood.fat)||0, protein: parseFloat(newFood.protein)||0, carbs: parseFloat(newFood.carbs)||0, fiber: parseFloat(newFood.fiber)||0, caffeine: parseFloat(newFood.caffeine)||0, sodium: parseFloat(newFood.sodium)||0, servingLabel: newFood.servingLabel||"serving", defaultServing: newFood.defaultServing||"1", healthTags: newFood.healthTags||[], keywords: (typeof newFood.keywords==="string" ? newFood.keywords.split(",").map(s=>s.trim()).filter(Boolean) : (newFood.keywords||[])) };
     persistFoods(editingFood ? savedFoods.map(f => f.id===editingFood.id?food:f) : [...savedFoods, food]);
     setNewFood({ ...EMPTY_FOOD }); setEditingFood(null);
     showToast(editingFood ? "Updated" : "Saved to library");
@@ -264,13 +265,21 @@ function App() {
     try { const s = importText.indexOf("{"), e = importText.lastIndexOf("}"); data = JSON.parse(importText.slice(s, e+1)); }
     catch { return showToast("That code doesn't look right", "error"); }
     let af = 0, ae = 0; const nf = [...savedFoods]; const ne = [...entries];
-    if (Array.isArray(data.library)) data.library.forEach((f,i) => { if (!f.name) return; nf.push({ id: Date.now()+i, name: f.name, calories: parseFloat(f.calories)||0, fat: parseFloat(f.fat)||0, protein: parseFloat(f.protein)||0, carbs: parseFloat(f.carbs)||0, fiber: parseFloat(f.fiber)||0, caffeine: parseFloat(f.caffeine)||0, sodium: parseFloat(f.sodium)||0, servingLabel: f.servingLabel||f.unit||"serving", defaultServing: (f.defaultServing??1).toString(), healthTags: Array.isArray(f.healthTags)?f.healthTags:[] }); af++; });
-    if (Array.isArray(data.entries)) data.entries.forEach((e,i) => { if (!e.food) return; ne.push({ id: Date.now()+1000+i, date: e.date||selectedDate, type: e.type||"food", food: e.food, time: e.time||getNow(), serving: (e.serving??1).toString(), unit: e.unit||"serving", volume: e.volume||"", notes: e.notes||"", source: "import", calories: parseFloat(e.calories)||0, fat: parseFloat(e.fat)||0, protein: parseFloat(e.protein)||0, carbs: parseFloat(e.carbs)||0, fiber: parseFloat(e.fiber)||0, caffeine: parseFloat(e.caffeine)||0, sodium: parseFloat(e.sodium)||0, healthTags: Array.isArray(e.healthTags)?e.healthTags:[] }); ae++; });
+    if (Array.isArray(data.library)) data.library.forEach((f,i) => { if (!f.name) return; const obj = { id: Date.now()+i, name: f.name, calories: parseFloat(f.calories)||0, fat: parseFloat(f.fat)||0, protein: parseFloat(f.protein)||0, carbs: parseFloat(f.carbs)||0, fiber: parseFloat(f.fiber)||0, caffeine: parseFloat(f.caffeine)||0, sodium: parseFloat(f.sodium)||0, servingLabel: f.servingLabel||f.unit||"serving", defaultServing: (f.defaultServing??1).toString(), healthTags: Array.isArray(f.healthTags)?f.healthTags:[], keywords: Array.isArray(f.keywords)?f.keywords:[] }; const idx = nf.findIndex(x => x.name.toLowerCase()===f.name.toLowerCase()); if (idx>=0) { obj.id = nf[idx].id; nf[idx] = obj; } else { nf.push(obj); } af++; });
+    if (Array.isArray(data.entries)) data.entries.forEach((e,i) => { if (!e.food) return; const eid = e.id || (Date.now()+1000+i); if (ne.some(x => x.id===eid)) return; ne.push({ id: eid, date: e.date||selectedDate, type: e.type||"food", food: e.food, time: e.time||getNow(), serving: (e.serving??1).toString(), unit: e.unit||"serving", volume: e.volume||"", notes: e.notes||"", source: e.source||"import", calories: parseFloat(e.calories)||0, fat: parseFloat(e.fat)||0, protein: parseFloat(e.protein)||0, carbs: parseFloat(e.carbs)||0, fiber: parseFloat(e.fiber)||0, caffeine: parseFloat(e.caffeine)||0, sodium: parseFloat(e.sodium)||0, healthTags: Array.isArray(e.healthTags)?e.healthTags:[], ingredients: Array.isArray(e.ingredients)?e.ingredients:undefined }); ae++; });
     if (af===0 && ae===0) return showToast("Nothing to import", "error");
     if (af) persistFoods(nf); if (ae) persistEntries(ne);
     setImportText(""); setImportModal(false);
     const parts = []; if (ae) parts.push(ae+" logged"); if (af) parts.push(af+" to library");
     showToast("Imported: " + parts.join(", "));
+  }
+
+  function buildBackup() {
+    return JSON.stringify({ library: savedFoods, entries: entries });
+  }
+  function copyBackup() {
+    const blob = buildBackup();
+    navigator.clipboard.writeText(blob).then(() => { setBackupCopied(true); setTimeout(() => setBackupCopied(false), 3000); }).catch(() => { setImportText(blob); showToast("Couldn't auto-copy — it's in the box below, select & copy", "error"); });
   }
 
   function buildExportText(date) {
@@ -307,8 +316,10 @@ function App() {
   const mealTotals = sumMacros(mealIngredients);
   function getSuggestions(query) {
     const q = (query||"").toLowerCase().trim(); if (q.length<1) return [];
-    const lib = savedFoods.filter(f=>f.name.toLowerCase().includes(q)).map(f=>({kind:"lib",name:f.name,unit:f.servingLabel,serving:f.defaultServing||"1",calories:f.calories}));
-    const bi = BUILTIN_FOODS.filter(b=>(b.name.toLowerCase().includes(q)||b.m.some(t=>t.includes(q)||q.includes(t)))&&!savedFoods.some(s=>s.name.toLowerCase()===b.name.toLowerCase())).map(b=>({kind:"builtin",name:b.name,unit:b.unit,serving:"1",calories:b.calories}));
+    const words = q.split(/\s+/).filter(Boolean);
+    const match = (hay) => hay.includes(q) || words.every(w => hay.includes(w));
+    const lib = savedFoods.filter(f => match((f.name + " " + (f.keywords||[]).join(" ")).toLowerCase())).map(f=>({kind:"lib",name:f.name,unit:f.servingLabel,serving:f.defaultServing||"1",calories:f.calories}));
+    const bi = BUILTIN_FOODS.filter(b => match((b.name + " " + b.m.join(" ")).toLowerCase()) && !savedFoods.some(s=>s.name.toLowerCase()===b.name.toLowerCase())).map(b=>({kind:"builtin",name:b.name,unit:b.unit,serving:"1",calories:b.calories}));
     const seen = new Set(); return [...lib,...bi].filter(x=>{const k=x.name.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;}).slice(0,6);
   }
   const foodSuggestions = sugOpen ? getSuggestions(form.food) : [];
@@ -329,7 +340,7 @@ function App() {
           <span style={{ fontFamily:"'Fraunces', serif", fontSize:27, color:"#E8633A", fontWeight:500 }}>nourish</span>
           <span style={{ fontSize:10, color:"#A89F93", letterSpacing:2, textTransform:"uppercase", fontWeight:600 }}>food log</span>
         </div>
-        <button onClick={()=>setImportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:9, padding:"8px 11px", cursor:"pointer", fontSize:11, fontWeight:700 }}>\u2B07 Import</button>
+        <button onClick={()=>setImportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:9, padding:"8px 11px", cursor:"pointer", fontSize:11, fontWeight:700 }}>⬇ Backup</button>
       </div>
 
       <div style={{ display:"flex", background:"#fff", borderBottom:"1px solid #ECE6DD", position:"sticky", top:0, zIndex:10 }}>
@@ -342,7 +353,7 @@ function App() {
         {tab==="log" && (
           <div>
             <div style={{ display:"flex", background:"#fff", borderRadius:13, padding:4, marginBottom:16, gap:3, border:"1px solid #ECE6DD" }}>
-              {[["food","\uD83C\uDF7D Food"],["drink","\uD83E\uDD64 Drink"],["meal","\uD83C\uDF71 Meal"]].map(([t,lbl]) => (
+              {[["food","🍽 Food"],["drink","🥤 Drink"],["meal","🍱 Meal"]].map(([t,lbl]) => (
                 <button key={t} onClick={()=>setEntryType(t)} style={{ flex:1, padding:"9px 4px", border:"none", borderRadius:9, background: entryType===t?"#E8633A":"transparent", color: entryType===t?"#fff":"#9A9085", fontWeight:600, fontSize:12.5, cursor:"pointer" }}>{lbl}</button>
               ))}
             </div>
@@ -356,18 +367,18 @@ function App() {
                   <input value={ingInput} onChange={e=>{setIngInput(e.target.value);setIngSugOpen(true);}} onKeyDown={e=>e.key==="Enter"&&handleAddIngredient()} placeholder="e.g. tortilla, peanut butter" style={{...IS, marginBottom: ingSuggestions.length?6:8}} />
                   {ingSuggestions.length>0 && (
                     <div style={{ background:"#fff", border:"1px solid #E0D8CC", borderRadius:11, marginBottom:8, overflow:"hidden", boxShadow:"0 4px 16px rgba(42,38,34,0.08)" }}>
-                      {ingSuggestions.map((s,i)=>(<button key={i} onClick={()=>{setIngInput(s.name);setIngUnit(s.unit);setIngServing(s.serving);setIngSugOpen(false);}} style={{ display:"flex", width:"100%", justifyContent:"space-between", alignItems:"center", padding:"9px 13px", background:"transparent", border:"none", borderBottom: i<ingSuggestions.length-1?"1px solid #F2EDE5":"none", color:"#2A2622", cursor:"pointer", textAlign:"left", fontSize:13 }}><span style={{fontWeight:500}}>{s.name}</span><span style={{fontSize:11, color: s.kind==="lib"?"#1F8C82":"#A89F93"}}>{s.kind==="lib"?"\u2605 library":s.calories+" kcal"}</span></button>))}
+                      {ingSuggestions.map((s,i)=>(<button key={i} onClick={()=>{setIngInput(s.name);setIngUnit(s.unit);setIngServing(s.serving);setIngSugOpen(false);}} style={{ display:"flex", width:"100%", justifyContent:"space-between", alignItems:"center", padding:"9px 13px", background:"transparent", border:"none", borderBottom: i<ingSuggestions.length-1?"1px solid #F2EDE5":"none", color:"#2A2622", cursor:"pointer", textAlign:"left", fontSize:13 }}><span style={{fontWeight:500}}>{s.name}</span><span style={{fontSize:11, color: s.kind==="lib"?"#1F8C82":"#A89F93"}}>{s.kind==="lib"?"★ library":s.calories+" kcal"}</span></button>))}
                     </div>
                   )}
                   <div style={{ display:"flex", gap:6, marginBottom:10 }}>
                     <input type="number" value={ingServing} onChange={e=>setIngServing(e.target.value)} style={{...IS, width:64}} min="0.1" step="0.5" />
                     <select value={ingUnit} onChange={e=>setIngUnit(e.target.value)} style={{...IS, flex:1}}>{["serving","tbsp","tsp","cup","oz","g","slice","piece"].map(u=><option key={u} value={u}>{u}</option>)}</select>
-                    <button onClick={handleAddIngredient} disabled={ingLoading||!ingInput.trim()} style={{ padding:"0 14px", background: ingLoading?"#F0EBE3":"#EAF6F4", border:"1px solid "+(ingLoading?"#E0D8CC":"#2BA89E"), color: ingLoading?"#B0A89C":"#1F8C82", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>{ingLoading?"\u2026":"+ Add"}</button>
+                    <button onClick={handleAddIngredient} disabled={ingLoading||!ingInput.trim()} style={{ padding:"0 14px", background: ingLoading?"#F0EBE3":"#EAF6F4", border:"1px solid "+(ingLoading?"#E0D8CC":"#2BA89E"), color: ingLoading?"#B0A89C":"#1F8C82", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>{ingLoading?"…":"+ Add"}</button>
                   </div>
                 </div>
                 {mealIngredients.length>0 && (
                   <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:13, padding:13, marginBottom:14 }}>
-                    {mealIngredients.map((ing,idx)=>(<div key={ing.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom: idx<mealIngredients.length-1?"1px solid #F2EDE5":"none" }}><div><span style={{fontSize:13,fontWeight:500}}>{ing.name}</span><span style={{fontSize:11,color:"#A89F93",marginLeft:6}}>{ing.serving} {ing.unit}</span></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,color:"#E8633A",fontWeight:600}}>{Math.round(ing.calories)} kcal</span><button onClick={()=>setMealIngredients(p=>p.filter(i=>i.id!==ing.id))} style={{background:"transparent",border:"none",color:"#C9C0B4",cursor:"pointer",fontSize:13}}>\u2715</button></div></div>))}
+                    {mealIngredients.map((ing,idx)=>(<div key={ing.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom: idx<mealIngredients.length-1?"1px solid #F2EDE5":"none" }}><div><span style={{fontSize:13,fontWeight:500}}>{ing.name}</span><span style={{fontSize:11,color:"#A89F93",marginLeft:6}}>{ing.serving} {ing.unit}</span></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,color:"#E8633A",fontWeight:600}}>{Math.round(ing.calories)} kcal</span><button onClick={()=>setMealIngredients(p=>p.filter(i=>i.id!==ing.id))} style={{background:"transparent",border:"none",color:"#C9C0B4",cursor:"pointer",fontSize:13}}>✕</button></div></div>))}
                     <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid #ECE6DD", display:"flex", gap:11, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:11,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?Math.round(mealTotals[m]):mealTotals[m]?.toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}</div>
                   </div>
                 )}
@@ -378,11 +389,11 @@ function App() {
                 <label style={LB}>What did you {entryType==="drink"?"drink":"eat"}?</label>
                 <div style={{ display:"flex", gap:8, marginBottom: foodSuggestions.length?0:10 }}>
                   <input value={form.food} onChange={e=>{setForm({...form,food:e.target.value});setSugOpen(true);setShowSaved(false);}} onKeyDown={e=>e.key==="Enter"&&handleLog()} placeholder={entryType==="drink"?"e.g. Liquid IV, coffee":"e.g. yogurt, chicken"} style={{...IS, flex:1}} />
-                  <button onClick={()=>{setShowSaved(!showSaved);setSugOpen(false);}} style={{ background: showSaved?"#FDEEE8":"#fff", border:"1px solid "+(showSaved?"#E8633A":"#E0D8CC"), color:"#E8633A", borderRadius:10, padding:"0 12px", cursor:"pointer", fontSize:16 }}>\u2606</button>
+                  <button onClick={()=>{setShowSaved(!showSaved);setSugOpen(false);}} style={{ background: showSaved?"#FDEEE8":"#fff", border:"1px solid "+(showSaved?"#E8633A":"#E0D8CC"), color:"#E8633A", borderRadius:10, padding:"0 12px", cursor:"pointer", fontSize:16 }}>☆</button>
                 </div>
                 {foodSuggestions.length>0 && (
                   <div style={{ background:"#fff", border:"1px solid #E0D8CC", borderRadius:11, margin:"6px 0 10px", overflow:"hidden", boxShadow:"0 4px 16px rgba(42,38,34,0.08)" }}>
-                    {foodSuggestions.map((s,i)=>(<button key={i} onClick={()=>{setForm(v=>({...v,food:s.name,unit:s.unit,serving:s.serving}));setSugOpen(false);}} style={{ display:"flex", width:"100%", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"transparent", border:"none", borderBottom: i<foodSuggestions.length-1?"1px solid #F2EDE5":"none", color:"#2A2622", cursor:"pointer", textAlign:"left", fontSize:13 }}><span style={{fontWeight:500}}>{s.name}</span><span style={{fontSize:11, color: s.kind==="lib"?"#1F8C82":"#A89F93"}}>{s.kind==="lib"?"\u2605 library":s.calories+" kcal"}</span></button>))}
+                    {foodSuggestions.map((s,i)=>(<button key={i} onClick={()=>{setForm(v=>({...v,food:s.name,unit:s.unit,serving:s.serving}));setSugOpen(false);}} style={{ display:"flex", width:"100%", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"transparent", border:"none", borderBottom: i<foodSuggestions.length-1?"1px solid #F2EDE5":"none", color:"#2A2622", cursor:"pointer", textAlign:"left", fontSize:13 }}><span style={{fontWeight:500}}>{s.name}</span><span style={{fontSize:11, color: s.kind==="lib"?"#1F8C82":"#A89F93"}}>{s.kind==="lib"?"★ library":s.calories+" kcal"}</span></button>))}
                   </div>
                 )}
                 {showSaved && (
@@ -403,10 +414,10 @@ function App() {
                   )}
                   <div style={{ flex:1 }}><label style={LB}>Time</label><input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})} style={IS} /></div>
                 </div>
-                <button onClick={handleLog} disabled={loading} style={{ width:"100%", padding:"14px", border:"none", borderRadius:12, fontSize:14, fontWeight:600, cursor:"pointer", background: loading?"#F0EBE3":"#E8633A", color: loading?"#C9C0B4":"#fff" }}>{loading?"\u2726 Estimating\u2026":"Log "+(entryType==="drink"?"Drink":"Food")}</button>
+                <button onClick={handleLog} disabled={loading} style={{ width:"100%", padding:"14px", border:"none", borderRadius:12, fontSize:14, fontWeight:600, cursor:"pointer", background: loading?"#F0EBE3":"#E8633A", color: loading?"#C9C0B4":"#fff" }}>{loading?"✦ Estimating…":"Log "+(entryType==="drink"?"Drink":"Food")}</button>
                 {autoSavePrompt && (
                   <div style={{ marginTop:14, background:"#fff", border:"1px solid #F2C9B8", borderRadius:13, padding:14 }}>
-                    <div style={{ fontSize:13, marginBottom:10 }}>You've logged <strong style={{color:"#E8633A"}}>{autoSavePrompt.food}</strong> a few times \u2014 save to library?</div>
+                    <div style={{ fontSize:13, marginBottom:10 }}>You've logged <strong style={{color:"#E8633A"}}>{autoSavePrompt.food}</strong> a few times — save to library?</div>
                     <div style={{ display:"flex", gap:8 }}><button onClick={handleAutoSave} style={{ flex:1, padding:"9px", background:"#E8633A", border:"none", borderRadius:8, color:"#fff", fontWeight:600, cursor:"pointer", fontSize:12 }}>Save to Library</button><button onClick={()=>setAutoSavePrompt(null)} style={{ padding:"9px 12px", background:"#F2EDE5", border:"none", borderRadius:8, color:"#9A9085", cursor:"pointer" }}>Dismiss</button></div>
                   </div>
                 )}
@@ -419,22 +430,22 @@ function App() {
           <div>
             <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
               <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} style={{...IS, flex:1}} />
-              <button onClick={()=>setExportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:10, padding:"10px 13px", cursor:"pointer", fontSize:11.5, fontWeight:700 }}>\u2191 Export</button>
+              <button onClick={()=>setExportModal(true)} style={{ background:"#EAF6F4", border:"1px solid #2BA89E", color:"#1F8C82", borderRadius:10, padding:"10px 13px", cursor:"pointer", fontSize:11.5, fontWeight:700 }}>↑ Export</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
               <div style={{ gridColumn:"1 / -1", background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"14px 16px" }}><div style={CL}>calories</div><div style={{ fontSize:33, fontWeight:300, color:"#E8633A" }}>{Math.round(totals.calories)}<span style={{fontSize:12,color:"#C9C0B4",marginLeft:3}}>kcal</span></div></div>
               {["protein","carbs","fat","fiber"].map(m=>(<div key={m} style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>{m}</div><div style={{fontSize:21,fontWeight:300,color:MACRO_COLORS[m]}}>{totals[m].toFixed(1)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>g</span></div></div>))}
-              {totalCaffeine>0 && <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>\u2615 caffeine</div><div style={{fontSize:21,fontWeight:300,color:"#8B6914"}}>{Math.round(totalCaffeine)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>mg</span></div></div>}
-              {totalFluids>0 && <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>\uD83D\uDCA7 fluids</div><div style={{fontSize:21,fontWeight:300,color:"#3B9BC4"}}>{totalFluids.toFixed(0)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>oz</span></div></div>}
+              {totalCaffeine>0 && <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>☕ caffeine</div><div style={{fontSize:21,fontWeight:300,color:"#8B6914"}}>{Math.round(totalCaffeine)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>mg</span></div></div>}
+              {totalFluids>0 && <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"12px 14px" }}><div style={CL}>💧 fluids</div><div style={{fontSize:21,fontWeight:300,color:"#3B9BC4"}}>{totalFluids.toFixed(0)}<span style={{fontSize:11,color:"#C9C0B4",marginLeft:2}}>oz</span></div></div>}
             </div>
             {allDayTags.length>0 && <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:14 }}>{allDayTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t)}>{t.icon} {t.label}</span>:null;})}</div>}
             {dayEntries.length===0 ? <div style={EMPTY}>Nothing logged yet.</div> : dayEntries.sort((a,b)=>a.time.localeCompare(b.time)).map(e=>(
               <div key={e.id} style={CARD}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                  <div style={{ flex:1 }}><div style={{fontWeight:500,fontSize:13.5}}>{e.type==="drink"?"\uD83E\uDD64 ":e.type==="meal"?"\uD83C\uDF71 ":""}{e.food}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>{e.time} \u00B7 {e.type==="drink"&&e.volume?e.volume+" "+e.unit:e.type==="meal"?(e.ingredients?e.ingredients.length:0)+" ingredients":e.serving+" "+e.unit}{e.source==="ai"&&<span style={{color:"#D9A48F",marginLeft:5}}>\u2726 AI</span>}</div>{e.type==="meal"&&e.notes&&<div style={{fontSize:11,color:"#B0A89C",marginTop:3}}>{e.notes}</div>}</div>
-                  <button onClick={()=>setDeleteConfirm(e.id)} style={{ background:"transparent", border:"none", color:"#C9C0B4", cursor:"pointer", fontSize:13 }}>\u2715</button>
+                  <div style={{ flex:1 }}><div style={{fontWeight:500,fontSize:13.5}}>{e.type==="drink"?"🥤 ":e.type==="meal"?"🍱 ":""}{e.food}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>{e.time} · {e.type==="drink"&&e.volume?e.volume+" "+e.unit:e.type==="meal"?(e.ingredients?e.ingredients.length:0)+" ingredients":e.serving+" "+e.unit}{e.source==="ai"&&<span style={{color:"#D9A48F",marginLeft:5}}>✦ AI</span>}</div>{e.type==="meal"&&e.notes&&<div style={{fontSize:11,color:"#B0A89C",marginTop:3}}>{e.notes}</div>}</div>
+                  <button onClick={()=>setDeleteConfirm(e.id)} style={{ background:"transparent", border:"none", color:"#C9C0B4", cursor:"pointer", fontSize:13 }}>✕</button>
                 </div>
-                <div style={{ display:"flex", gap:8, marginTop:8, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:10.5,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?Math.round(e[m]):parseFloat(e[m]).toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}{parseFloat(e.caffeine)>0&&<span style={{fontSize:10.5,color:"#8B6914",fontWeight:600}}>\u2615 {Math.round(e.caffeine)}mg</span>}</div>
+                <div style={{ display:"flex", gap:8, marginTop:8, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:10.5,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?Math.round(e[m]):parseFloat(e[m]).toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}{parseFloat(e.caffeine)>0&&<span style={{fontSize:10.5,color:"#8B6914",fontWeight:600}}>☕ {Math.round(e.caffeine)}mg</span>}</div>
                 {(e.healthTags||[]).length>0 && <div style={{ display:"flex", gap:4, marginTop:6, flexWrap:"wrap" }}>{e.healthTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}
                 {deleteConfirm===e.id && <div style={{ marginTop:10, display:"flex", gap:8 }}><button onClick={()=>handleDeleteEntry(e.id)} style={{ flex:1, padding:"7px", background:"#FBE9E9", border:"1px solid #D14343", borderRadius:7, color:"#C0392B", cursor:"pointer", fontSize:12, fontWeight:600 }}>Delete</button><button onClick={()=>setDeleteConfirm(null)} style={{ flex:1, padding:"7px", background:"#F2EDE5", border:"none", borderRadius:7, color:"#9A9085", cursor:"pointer", fontSize:12 }}>Cancel</button></div>}
               </div>
@@ -444,18 +455,20 @@ function App() {
 
         {tab==="library" && (
           <div>
-            <p style={{ color:"#9A9085", fontSize:12, marginTop:0, marginBottom:14, lineHeight:1.5 }}>Type a name and tap <strong style={{color:"#1F8C82"}}>Look Up</strong> for AI nutrition \u2014 or type the numbers off the label. Set your usual serving so it pre-fills every time.</p>
+            <p style={{ color:"#9A9085", fontSize:12, marginTop:0, marginBottom:14, lineHeight:1.5 }}>Type a name and tap <strong style={{color:"#1F8C82"}}>Look Up</strong> for AI nutrition — or type the numbers off the label. Set your usual serving so it pre-fills every time.</p>
             <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:15, padding:14, marginBottom:18 }}>
               <div style={{ fontWeight:600, marginBottom:12, fontSize:13, color: editingFood?"#1F8C82":"#2A2622" }}>{editingFood?"Editing: "+editingFood.name:"Add to Library"}</div>
               <label style={LB}>Name</label>
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
                 <input value={newFood.name} onChange={e=>setNewFood({...newFood,name:e.target.value})} placeholder="e.g. Siggi's vanilla, Liquid IV" style={{...IS, flex:1}} />
-                <button onClick={handleLookupFood} disabled={foodLookupLoading} style={{ background: foodLookupLoading?"#F0EBE3":"#EAF6F4", border:"1px solid "+(foodLookupLoading?"#E0D8CC":"#2BA89E"), color: foodLookupLoading?"#B0A89C":"#1F8C82", borderRadius:10, padding:"0 13px", cursor:"pointer", fontSize:11.5, fontWeight:700, whiteSpace:"nowrap" }}>{foodLookupLoading?"\u2026":"Look Up"}</button>
+                <button onClick={handleLookupFood} disabled={foodLookupLoading} style={{ background: foodLookupLoading?"#F0EBE3":"#EAF6F4", border:"1px solid "+(foodLookupLoading?"#E0D8CC":"#2BA89E"), color: foodLookupLoading?"#B0A89C":"#1F8C82", borderRadius:10, padding:"0 13px", cursor:"pointer", fontSize:11.5, fontWeight:700, whiteSpace:"nowrap" }}>{foodLookupLoading?"…":"Look Up"}</button>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                 <div><label style={LB}>Serving label</label><input value={newFood.servingLabel} onChange={e=>setNewFood({...newFood,servingLabel:e.target.value})} placeholder="packet, cup" style={IS} /></div>
-                <div><label style={{...LB, color:"#E8633A"}}>My usual serving \u2726</label><input type="number" value={newFood.defaultServing} onChange={e=>setNewFood({...newFood,defaultServing:e.target.value})} placeholder="1" style={{...IS, borderColor:"#F2C9B8"}} min="0.1" step="0.25" /></div>
+                <div><label style={{...LB, color:"#E8633A"}}>My usual serving ✦</label><input type="number" value={newFood.defaultServing} onChange={e=>setNewFood({...newFood,defaultServing:e.target.value})} placeholder="1" style={{...IS, borderColor:"#F2C9B8"}} min="0.1" step="0.25" /></div>
               </div>
+              <label style={LB}>Search keywords (optional, comma-separated)</label>
+              <input value={typeof newFood.keywords==="string"?newFood.keywords:(newFood.keywords||[]).join(", ")} onChange={e=>setNewFood({...newFood,keywords:e.target.value})} placeholder="e.g. yogurt, skyr" style={{...IS, marginBottom:10}} />
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                 {MACROS.map(m=><div key={m}><label style={LB}>{m} ({MACRO_UNITS[m]})</label><input type="number" value={newFood[m]} onChange={e=>setNewFood({...newFood,[m]:e.target.value})} placeholder="0" style={IS} min="0" /></div>)}
                 <div><label style={LB}>Caffeine (mg)</label><input type="number" value={newFood.caffeine} onChange={e=>setNewFood({...newFood,caffeine:e.target.value})} placeholder="0" style={IS} min="0" /></div>
@@ -469,9 +482,10 @@ function App() {
             </div>
             {savedFoods.length===0 ? <div style={EMPTY}>Library empty. Add your go-to foods above.</div> : savedFoods.map(f=>(
               <div key={f.id} style={CARD}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}><div><div style={{fontWeight:500,fontSize:13.5}}>{f.name}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>per {f.servingLabel}{parseFloat(f.defaultServing)!==1&&<span style={{color:"#E8633A",marginLeft:6}}>my: {f.defaultServing}\u00D7</span>}</div></div><div style={{display:"flex",gap:8}}><button onClick={()=>{setEditingFood(f);setNewFood({name:f.name,calories:f.calories,fat:f.fat,protein:f.protein,carbs:f.carbs,fiber:f.fiber,caffeine:f.caffeine||0,sodium:f.sodium||0,servingLabel:f.servingLabel,defaultServing:f.defaultServing||"1",healthTags:f.healthTags||[]});}} style={{background:"transparent",border:"none",color:"#E8633A",cursor:"pointer",fontSize:12,fontWeight:600}}>edit</button><button onClick={()=>handleDeleteFood(f.id)} style={{background:"transparent",border:"none",color:"#C9C0B4",cursor:"pointer",fontSize:13}}>\u2715</button></div></div>
-                <div style={{ display:"flex", gap:8, marginTop:7, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:10.5,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?f[m]:parseFloat(f[m]).toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}{parseFloat(f.caffeine)>0&&<span style={{fontSize:10.5,color:"#8B6914",fontWeight:600}}>\u2615 {f.caffeine}mg</span>}</div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}><div><div style={{fontWeight:500,fontSize:13.5}}>{f.name}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>per {f.servingLabel}{parseFloat(f.defaultServing)!==1&&<span style={{color:"#E8633A",marginLeft:6}}>my: {f.defaultServing}×</span>}</div></div><div style={{display:"flex",gap:8}}><button onClick={()=>{setEditingFood(f);setNewFood({name:f.name,calories:f.calories,fat:f.fat,protein:f.protein,carbs:f.carbs,fiber:f.fiber,caffeine:f.caffeine||0,sodium:f.sodium||0,servingLabel:f.servingLabel,defaultServing:f.defaultServing||"1",healthTags:f.healthTags||[],keywords:(f.keywords||[]).join(", ")});}} style={{background:"transparent",border:"none",color:"#E8633A",cursor:"pointer",fontSize:12,fontWeight:600}}>edit</button><button onClick={()=>handleDeleteFood(f.id)} style={{background:"transparent",border:"none",color:"#C9C0B4",cursor:"pointer",fontSize:13}}>✕</button></div></div>
+                <div style={{ display:"flex", gap:8, marginTop:7, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:10.5,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?f[m]:parseFloat(f[m]).toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}{parseFloat(f.caffeine)>0&&<span style={{fontSize:10.5,color:"#8B6914",fontWeight:600}}>☕ {f.caffeine}mg</span>}</div>
                 {(f.healthTags||[]).length>0 && <div style={{ display:"flex", gap:4, marginTop:6, flexWrap:"wrap" }}>{f.healthTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}
+                {(f.keywords||[]).length>0 && <div style={{ fontSize:10.5, color:"#B0A89C", marginTop:6 }}>🔎 also finds: {f.keywords.join(", ")}</div>}
               </div>
             ))}
           </div>
@@ -479,14 +493,14 @@ function App() {
 
         {tab==="history" && (
           <div>
-            <div style={{ display:"flex", background:"#fff", borderRadius:11, padding:4, marginBottom:16, border:"1px solid #ECE6DD" }}>{[["list","\uD83D\uDCCB List"],["charts","\uD83D\uDCC8 Charts"]].map(([v,lbl])=>(<button key={v} onClick={()=>setHistoryView(v)} style={{ flex:1, padding:"8px", border:"none", borderRadius:8, background: historyView===v?"#E8633A":"transparent", color: historyView===v?"#fff":"#9A9085", fontWeight:700, fontSize:11, cursor:"pointer", textTransform:"uppercase", letterSpacing:1 }}>{lbl}</button>))}</div>
+            <div style={{ display:"flex", background:"#fff", borderRadius:11, padding:4, marginBottom:16, border:"1px solid #ECE6DD" }}>{[["list","📋 List"],["charts","📈 Charts"]].map(([v,lbl])=>(<button key={v} onClick={()=>setHistoryView(v)} style={{ flex:1, padding:"8px", border:"none", borderRadius:8, background: historyView===v?"#E8633A":"transparent", color: historyView===v?"#fff":"#9A9085", fontWeight:700, fontSize:11, cursor:"pointer", textTransform:"uppercase", letterSpacing:1 }}>{lbl}</button>))}</div>
             {historyView==="list" && (allDates.length===0 ? <div style={EMPTY}>No history yet.</div> : allDates.map(date=>{const items=entries.filter(e=>e.date===date);const cals=items.reduce((s,e)=>s+(parseFloat(e.calories)||0),0);const prot=items.reduce((s,e)=>s+(parseFloat(e.protein)||0),0);const tags=[...new Set(items.flatMap(e=>e.healthTags||[]))].slice(0,4);return(<div key={date} onClick={()=>{setSelectedDate(date);setTab("today");}} style={{...CARD, cursor:"pointer"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:500,fontSize:14}}>{fmtDate(date)}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>{items.length} entries</div></div><div style={{textAlign:"right"}}><div style={{color:"#E8633A",fontWeight:600,fontSize:14}}>{Math.round(cals)} kcal</div><div style={{color:"#1F8C82",fontSize:11}}>{prot.toFixed(0)}g protein</div></div></div>{tags.length>0&&<div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap"}}>{tags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}</div>);}))}
             {historyView==="charts" && (
               <div>
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:16 }}>{MACROS.map(m=><button key={m} onClick={()=>setChartMacro(m)} style={{ padding:"5px 11px", borderRadius:50, border:"1px solid "+(chartMacro===m?MACRO_COLORS[m]:"#E0D8CC"), background: chartMacro===m?MACRO_COLORS[m]+"1A":"#fff", color: chartMacro===m?MACRO_COLORS[m]:"#9A9085", fontSize:10, cursor:"pointer", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>{m}</button>)}</div>
                 {chartData.length<2 ? <div style={EMPTY}>Log 2+ days to see charts.</div> : (
                   <div style={{ background:"#fff", border:"1px solid #ECE6DD", borderRadius:14, padding:"14px 8px 12px" }}>
-                    <div style={{ fontSize:10, color:"#A89F93", letterSpacing:1.5, textTransform:"uppercase", fontWeight:600, marginBottom:10, paddingLeft:6 }}>{chartMacro} \u2014 last {chartData.length} days</div>
+                    <div style={{ fontSize:10, color:"#A89F93", letterSpacing:1.5, textTransform:"uppercase", fontWeight:600, marginBottom:10, paddingLeft:6 }}>{chartMacro} — last {chartData.length} days</div>
                     <BarChartSimple data={chartData} color={MACRO_COLORS[chartMacro]} unit={MACRO_UNITS[chartMacro]} />
                     {(()=>{const vals=chartData.map(d=>d.value).filter(v=>v>0);if(vals.length<2)return null;const avg=vals.reduce((a,b)=>a+b,0)/vals.length;return(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:12,padding:"0 8px"}}>{[["avg",avg],["high",Math.max(...vals)],["low",Math.min(...vals)]].map(([lbl,val])=>(<div key={lbl} style={{textAlign:"center"}}><div style={{fontSize:9,color:"#B0A89C",textTransform:"uppercase",letterSpacing:1,fontWeight:600}}>{lbl}</div><div style={{fontSize:16,color:MACRO_COLORS[chartMacro],fontWeight:400}}>{Math.round(val*10)/10}</div><div style={{fontSize:9,color:"#C9C0B4"}}>{MACRO_UNITS[chartMacro]}</div></div>))}</div>);})()}
                   </div>
@@ -500,9 +514,19 @@ function App() {
       {importModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(42,38,34,0.55)", zIndex:100, display:"flex", flexDirection:"column", padding:14 }}>
           <div style={{ background:"#fff", borderRadius:18, flex:1, display:"flex", flexDirection:"column", overflow:"hidden", border:"1px solid #ECE6DD" }}>
-            <div style={{ padding:"15px 16px", borderBottom:"1px solid #ECE6DD", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{fontWeight:600,fontSize:13}}>Import</span><button onClick={()=>{setImportModal(false);setImportText("");}} style={{background:"transparent",border:"none",color:"#A89F93",fontSize:17,cursor:"pointer"}}>\u2715</button></div>
-            <div style={{ flex:1, overflow:"auto", padding:16 }}><p style={{fontSize:12.5,color:"#9A9085",marginTop:0,marginBottom:14,lineHeight:1.5}}>Paste a code (from Claude in chat, or one you saved). It can add foods to your library and/or log entries.</p><textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder={'{"library":[...]}'} style={{...IS, minHeight:150, fontFamily:"monospace", fontSize:12, resize:"vertical"}} /></div>
-            <div style={{ padding:"12px 14px", borderTop:"1px solid #ECE6DD" }}><button onClick={handleImport} style={{ width:"100%", padding:"12px", background:"#E8633A", border:"none", borderRadius:11, color:"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>Import</button></div>
+            <div style={{ padding:"15px 16px", borderBottom:"1px solid #ECE6DD", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{fontWeight:600,fontSize:13}}>Backup &amp; Restore</span><button onClick={()=>{setImportModal(false);setImportText("");setBackupCopied(false);}} style={{background:"transparent",border:"none",color:"#A89F93",fontSize:17,cursor:"pointer"}}>✕</button></div>
+            <div style={{ flex:1, overflow:"auto", padding:16 }}>
+              <div style={{ background:"#FAF7F2", border:"1px solid #ECE6DD", borderRadius:13, padding:14, marginBottom:18 }}>
+                <div style={{ fontWeight:600, fontSize:13, marginBottom:6 }}>🛟 Back up everything</div>
+                <p style={{ fontSize:12, color:"#9A9085", marginTop:0, marginBottom:12, lineHeight:1.5 }}>Copies your whole library + every logged entry as one code. Paste it into your Notes or email it to yourself. To restore on a new phone, paste it into the box below and tap Restore.</p>
+                <div style={{ fontSize:11, color:"#B0A89C", marginBottom:10 }}>{savedFoods.length} foods · {entries.length} logged entries</div>
+                <button onClick={copyBackup} style={{ width:"100%", padding:"11px", background: backupCopied?"#EAF6F4":"#2BA89E", border:"none", borderRadius:10, color: backupCopied?"#1F8C82":"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>{backupCopied?"✓ Copied — now paste it somewhere safe":"Copy my backup"}</button>
+              </div>
+              <div style={{ fontWeight:600, fontSize:13, marginBottom:6 }}>📥 Restore / Import</div>
+              <p style={{fontSize:12,color:"#9A9085",marginTop:0,marginBottom:12,lineHeight:1.5}}>Paste a backup code, or a food code from Claude. Foods update in place (no duplicates); logged days are added back.</p>
+              <textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder={'Paste a backup or {"library":[...]} here'} style={{...IS, minHeight:130, fontFamily:"monospace", fontSize:12, resize:"vertical"}} />
+            </div>
+            <div style={{ padding:"12px 14px", borderTop:"1px solid #ECE6DD" }}><button onClick={handleImport} style={{ width:"100%", padding:"12px", background:"#E8633A", border:"none", borderRadius:11, color:"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>Restore / Import</button></div>
           </div>
         </div>
       )}
@@ -510,9 +534,9 @@ function App() {
       {exportModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(42,38,34,0.55)", zIndex:100, display:"flex", flexDirection:"column", padding:14 }}>
           <div style={{ background:"#fff", borderRadius:18, flex:1, display:"flex", flexDirection:"column", overflow:"hidden", border:"1px solid #ECE6DD" }}>
-            <div style={{ padding:"15px 16px", borderBottom:"1px solid #ECE6DD", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{fontWeight:600,fontSize:13}}>Export \u2014 {fmtDate(selectedDate)}</span><button onClick={()=>{setExportModal(false);setExportCopied(false);}} style={{background:"transparent",border:"none",color:"#A89F93",fontSize:17,cursor:"pointer"}}>\u2715</button></div>
+            <div style={{ padding:"15px 16px", borderBottom:"1px solid #ECE6DD", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{fontWeight:600,fontSize:13}}>Export — {fmtDate(selectedDate)}</span><button onClick={()=>{setExportModal(false);setExportCopied(false);}} style={{background:"transparent",border:"none",color:"#A89F93",fontSize:17,cursor:"pointer"}}>✕</button></div>
             <div style={{ flex:1, overflow:"auto", padding:14, background:"#FAF7F2" }}><pre style={{ fontFamily:"monospace", fontSize:11.5, color:"#5A5249", lineHeight:1.7, whiteSpace:"pre-wrap", margin:0 }}>{buildExportText(selectedDate)}</pre></div>
-            <div style={{ padding:"12px 14px", borderTop:"1px solid #ECE6DD" }}><button onClick={()=>{navigator.clipboard.writeText(buildExportText(selectedDate)).then(()=>{setExportCopied(true);setTimeout(()=>setExportCopied(false),2500);});}} style={{ width:"100%", padding:"12px", background: exportCopied?"#EAF6F4":"#E8633A", border:"none", borderRadius:11, color: exportCopied?"#1F8C82":"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>{exportCopied?"\u2713 Copied":"Copy to Clipboard"}</button></div>
+            <div style={{ padding:"12px 14px", borderTop:"1px solid #ECE6DD" }}><button onClick={()=>{navigator.clipboard.writeText(buildExportText(selectedDate)).then(()=>{setExportCopied(true);setTimeout(()=>setExportCopied(false),2500);});}} style={{ width:"100%", padding:"12px", background: exportCopied?"#EAF6F4":"#E8633A", border:"none", borderRadius:11, color: exportCopied?"#1F8C82":"#fff", fontWeight:600, cursor:"pointer", fontSize:13 }}>{exportCopied?"✓ Copied":"Copy to Clipboard"}</button></div>
           </div>
         </div>
       )}
