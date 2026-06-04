@@ -122,7 +122,7 @@ healthTags only from: ${TAG_LIST}. caffeine and sodium in mg. servingUnit is a l
 
 /* ============ HELPERS ============ */
 function getNow() { return new Date().toTimeString().slice(0, 5); }
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+function todayStr() { const d = new Date(); const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,"0"); const day = String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+day; }
 function fmtDate(d) { if (d === todayStr()) return "Today"; return new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); }
 function sumMacros(items) { const acc = MACROS.reduce((a, m) => { a[m] = items.reduce((s, i) => s + (parseFloat(i[m]) || 0), 0); return a; }, {}); acc.caffeine = items.reduce((s, i) => s + (parseFloat(i.caffeine) || 0), 0); return acc; }
 function loadLS(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
