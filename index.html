@@ -90,11 +90,17 @@ async function callAI(prompt) {
   let data;
   try { data = await r.json(); } catch { throw new Error("Server didn't respond properly"); }
   if (data.error) throw new Error(typeof data.error === "string" ? data.error : (data.error.message || "AI error"));
-  const text = (data.content || []).find(b => b.type === "text")?.text;
-  if (!text) throw new Error("Empty AI reply");
-  const s = text.indexOf("{"), e = text.lastIndexOf("}");
-  if (s === -1 || e === -1) throw new Error("AI returned no data");
-  return JSON.parse(text.slice(s, e + 1));
+  // Web-search replies can contain several text blocks (search notes + the answer).
+  // Scan from the last text block backward and grab the JSON object.
+  const texts = (data.content || []).filter(b => b.type === "text").map(b => b.text || "");
+  if (!texts.length) throw new Error("Empty AI reply");
+  for (let i = texts.length - 1; i >= 0; i--) {
+    const t = texts[i], s = t.indexOf("{"), e = t.lastIndexOf("}");
+    if (s !== -1 && e !== -1 && e > s) {
+      try { return JSON.parse(t.slice(s, e + 1)); } catch (err) {}
+    }
+  }
+  throw new Error("AI returned no usable data");
 }
 
 async function estimateNutrition(description, serving, unit, isDrink) {
@@ -103,21 +109,21 @@ async function estimateNutrition(description, serving, unit, isDrink) {
     const m = parseFloat(serving) || 1;
     return { calories: Math.round(f.calories*m), fat:+(f.fat*m).toFixed(1), protein:+(f.protein*m).toFixed(1), carbs:+(f.carbs*m).toFixed(1), fiber:+(f.fiber*m).toFixed(1), caffeine: Math.round(f.caffeine*m), sodium: Math.round(f.sodium*m), healthTags: f.healthTags };
   }
-  return callAI(`Estimate nutrition facts. Respond with ONLY a JSON object, nothing else.
+  return callAI(`Work out the nutrition facts for the item below for the amount given. If it names a brand or restaurant, search the web for the official published values and scale to the amount; otherwise estimate from the ingredients. After your research, respond with ONLY a JSON object as the final thing in your reply, nothing after it.
 Item: "${description}"
 Amount: ${serving} ${unit}
 Type: ${isDrink ? "drink/beverage" : "food"}
 Format: {"calories":0,"fat":0,"protein":0,"carbs":0,"fiber":0,"caffeine":0,"sodium":0,"healthTags":[]}
-healthTags only from: ${TAG_LIST}. caffeine and sodium in mg. Numbers only.`);
+healthTags only from: ${TAG_LIST}. caffeine and sodium in mg. Numbers reflect the amount eaten, not just one serving.`);
 }
 
 async function lookupFood(name) {
   const f = findBuiltin(name);
   if (f) return { calories: f.calories, fat: f.fat, protein: f.protein, carbs: f.carbs, fiber: f.fiber, caffeine: f.caffeine, sodium: f.sodium, servingSize: 1, servingUnit: f.unit, healthTags: f.healthTags };
-  return callAI(`Give standard nutrition facts for one serving. Respond with ONLY a JSON object, nothing else.
+  return callAI(`Look up the OFFICIAL published nutrition facts for this exact product and flavor. Search the web first (the manufacturer's own site/label or a reputable nutrition database) and use the real per-serving numbers from the label. If after searching you truly can't find it, give your best estimate. After your research, respond with ONLY a JSON object as the final thing in your reply, nothing after it.
 Product: "${name}"
 Format: {"calories":0,"fat":0,"protein":0,"carbs":0,"fiber":0,"caffeine":0,"sodium":0,"servingSize":1,"servingUnit":"serving","healthTags":[]}
-healthTags only from: ${TAG_LIST}. caffeine and sodium in mg. servingUnit is a label like "packet","cup","scoop","container","oz".`);
+servingSize is the number of label servings (usually 1) and servingUnit is the label's serving wording like "container","cup","scoop","2 tbsp","packet". healthTags only from: ${TAG_LIST}. caffeine and sodium in mg.`);
 }
 
 /* ============ HELPERS ============ */
