@@ -262,6 +262,14 @@ function App() {
   function newMeal() { setMealName(""); setMealIngredients([]); setEditingMealId(null); }
   function deleteMeal(id) { persistMeals(savedMeals.filter(m => m.id !== id)); if (id===editingMealId) setEditingMealId(null); showToast("Meal removed"); }
 
+  function copyEntryCode(e) {
+    // Strip id and date so the pasted copy becomes a NEW entry on whatever day is selected at import.
+    const item = { food: e.food, type: e.type||"food", serving: e.serving, unit: e.unit, volume: e.volume||"", notes: e.notes||"", source: e.source||"import", calories: e.calories, protein: e.protein, carbs: e.carbs, fat: e.fat, fiber: e.fiber, caffeine: e.caffeine||0, sodium: e.sodium||0, healthTags: e.healthTags||[] };
+    if (Array.isArray(e.ingredients)) item.ingredients = e.ingredients;
+    const code = JSON.stringify({ entries: [item] });
+    navigator.clipboard.writeText(code).then(()=>showToast("Copied \\u2014 set the date, then Import/Backup \\u2192 Restore")).catch(()=>{ setImportText(code); setImportModal(true); showToast("Couldn't auto-copy \\u2014 it's in the Restore box","error"); });
+  }
+
   function handleLogMeal() {
     if (!mealName.trim()) return showToast("Name your meal first", "error");
     if (!mealIngredients.length) return showToast("Add an ingredient first", "error");
@@ -511,7 +519,10 @@ function App() {
               <div key={e.id} style={CARD}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                   <div style={{ flex:1 }}><div style={{fontWeight:500,fontSize:13.5}}>{e.type==="drink"?"🥤 ":e.type==="meal"?"🍱 ":""}{e.food}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>{e.time} · {e.type==="drink"&&e.volume?e.volume+" "+e.unit:e.type==="meal"?(e.ingredients?e.ingredients.length:0)+" ingredients":e.serving+" "+e.unit}{e.source==="ai"&&<span style={{color:"#D9A48F",marginLeft:5}}>✦ AI</span>}</div>{e.type==="meal"&&e.notes&&<div style={{fontSize:11,color:"#B0A89C",marginTop:3}}>{e.notes}</div>}</div>
-                  <button onClick={()=>setDeleteConfirm(e.id)} style={{ background:"transparent", border:"none", color:"#C9C0B4", cursor:"pointer", fontSize:13 }}>✕</button>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <button onClick={()=>copyEntryCode(e)} title="Copy this as an import code" style={{ background:"transparent", border:"none", color:"#2BA89E", cursor:"pointer", fontSize:12, fontWeight:600 }}>⧉ copy</button>
+                    <button onClick={()=>setDeleteConfirm(e.id)} style={{ background:"transparent", border:"none", color:"#C9C0B4", cursor:"pointer", fontSize:13 }}>✕</button>
+                  </div>
                 </div>
                 <div style={{ display:"flex", gap:8, marginTop:8, flexWrap:"wrap" }}>{MACROS.map(m=><span key={m} style={{fontSize:10.5,color:MACRO_COLORS[m],fontWeight:600}}>{m==="calories"?Math.round(e[m]):parseFloat(e[m]).toFixed(1)}{MACRO_UNITS[m]} {m}</span>)}{parseFloat(e.caffeine)>0&&<span style={{fontSize:10.5,color:"#8B6914",fontWeight:600}}>☕ {Math.round(e.caffeine)}mg</span>}</div>
                 {(e.healthTags||[]).length>0 && <div style={{ display:"flex", gap:4, marginTop:6, flexWrap:"wrap" }}>{e.healthTags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}
