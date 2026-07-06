@@ -181,6 +181,8 @@ function App() {
   const [newFood, setNewFood] = useState({ ...EMPTY_FOOD });
   const [foodLookupLoading, setFoodLookupLoading] = useState(false);
   const [historyView, setHistoryView] = useState("list");
+  const [historySearch, setHistorySearch] = useState("");
+  const [searchServingEdits, setSearchServingEdits] = useState({});
   const [chartMacro, setChartMacro] = useState("calories");
   const [toast, setToast] = useState(null);
 
@@ -268,6 +270,19 @@ function App() {
     if (Array.isArray(e.ingredients)) item.ingredients = e.ingredients;
     const code = JSON.stringify({ entries: [item] });
     navigator.clipboard.writeText(code).then(()=>showToast("Copied \\u2014 set the date, then Import/Backup \\u2192 Restore")).catch(()=>{ setImportText(code); setImportModal(true); showToast("Couldn't auto-copy \\u2014 it's in the Restore box","error"); });
+  }
+
+  function copyEntryCodeScaled(e, newServing) {
+    const oldServing = parseFloat(e.serving) || 1;
+    const ns = parseFloat(newServing);
+    const ratio = (isFinite(ns) && oldServing > 0) ? (ns / oldServing) : 1;
+    const scale = v => Math.round((parseFloat(v||0) * ratio) * 10) / 10;
+    const item = { food: e.food, type: e.type||"food", serving: (isFinite(ns)?ns:oldServing).toString(), unit: e.unit, volume: e.volume||"", notes: e.notes||"", source: e.source||"import", calories: scale(e.calories), protein: scale(e.protein), carbs: scale(e.carbs), fat: scale(e.fat), fiber: scale(e.fiber), caffeine: scale(e.caffeine), sodium: scale(e.sodium), healthTags: e.healthTags||[] };
+    if (Array.isArray(e.ingredients)) {
+      item.ingredients = e.ingredients.map(i => ({ ...i, serving: (Math.round((parseFloat(i.serving||1)*ratio)*100)/100).toString(), calories: scale(i.calories), protein: scale(i.protein), carbs: scale(i.carbs), fat: scale(i.fat), fiber: scale(i.fiber), caffeine: scale(i.caffeine), sodium: scale(i.sodium) }));
+    }
+    const code = JSON.stringify({ entries: [item] });
+    navigator.clipboard.writeText(code).then(()=>showToast("Copied at "+item.serving+" "+item.unit+" \\u2014 set date, then Restore")).catch(()=>{ setImportText(code); setImportModal(true); showToast("Couldn't auto-copy \\u2014 it's in the Restore box","error"); });
   }
 
   function handleLogMeal() {
@@ -572,8 +587,40 @@ function App() {
 
         {tab==="history" && (
           <div>
-            <div style={{ display:"flex", background:"#fff", borderRadius:11, padding:4, marginBottom:16, border:"1px solid #ECE6DD" }}>{[["list","📋 List"],["charts","📈 Charts"]].map(([v,lbl])=>(<button key={v} onClick={()=>setHistoryView(v)} style={{ flex:1, padding:"8px", border:"none", borderRadius:8, background: historyView===v?"#E8633A":"transparent", color: historyView===v?"#fff":"#9A9085", fontWeight:700, fontSize:11, cursor:"pointer", textTransform:"uppercase", letterSpacing:1 }}>{lbl}</button>))}</div>
+            <div style={{ display:"flex", background:"#fff", borderRadius:11, padding:4, marginBottom:16, border:"1px solid #ECE6DD" }}>{[["list","📋 List"],["search","🔍 Search"],["charts","📈 Charts"]].map(([v,lbl])=>(<button key={v} onClick={()=>setHistoryView(v)} style={{ flex:1, padding:"8px", border:"none", borderRadius:8, background: historyView===v?"#E8633A":"transparent", color: historyView===v?"#fff":"#9A9085", fontWeight:700, fontSize:11, cursor:"pointer", textTransform:"uppercase", letterSpacing:1 }}>{lbl}</button>))}</div>
             {historyView==="list" && (allDates.length===0 ? <div style={EMPTY}>No history yet.</div> : allDates.map(date=>{const items=entries.filter(e=>e.date===date);const cals=items.reduce((s,e)=>s+(parseFloat(e.calories)||0),0);const prot=items.reduce((s,e)=>s+(parseFloat(e.protein)||0),0);const tags=[...new Set(items.flatMap(e=>e.healthTags||[]))].slice(0,4);return(<div key={date} onClick={()=>{setSelectedDate(date);setTab("today");}} style={{...CARD, cursor:"pointer"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:500,fontSize:14}}>{fmtDate(date)}</div><div style={{color:"#A89F93",fontSize:11,marginTop:2}}>{items.length} entries</div></div><div style={{textAlign:"right"}}><div style={{color:"#E8633A",fontWeight:600,fontSize:14}}>{Math.round(cals)} kcal</div><div style={{color:"#1F8C82",fontSize:11}}>{prot.toFixed(0)}g protein</div></div></div>{tags.length>0&&<div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap"}}>{tags.map(tag=>{const t=HEALTH_TAGS[tag];return t?<span key={tag} style={tagPill(t,true)}>{t.icon} {t.label}</span>:null;})}</div>}</div>);}))}
+            {historyView==="search" && (
+              <div>
+                <input value={historySearch} onChange={e=>setHistorySearch(e.target.value)} placeholder="Search past foods by name..." style={{...IS, marginBottom:14}} autoFocus />
+                {historySearch.trim().length<2 ? (
+                  <div style={EMPTY}>Type at least 2 letters to search your history.</div>
+                ) : (()=>{
+                  const q = historySearch.trim().toLowerCase();
+                  const matches = entries.filter(e => (e.food||"").toLowerCase().includes(q)).sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
+                  if (!matches.length) return <div style={EMPTY}>No matches for "{historySearch}".</div>;
+                  return matches.map(e => {
+                    const editVal = searchServingEdits[e.id] ?? e.serving;
+                    return (
+                      <div key={e.id} style={CARD}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                          <div>
+                            <div style={{ fontWeight:500, fontSize:14 }}>{e.food}</div>
+                            <div style={{ color:"#A89F93", fontSize:11, marginTop:2 }}>{fmtDate(e.date)} \u00b7 {e.serving} {e.unit}</div>
+                          </div>
+                          <div style={{ color:"#E8633A", fontWeight:600, fontSize:14 }}>{Math.round(e.calories)} kcal</div>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:10 }}>
+                          <span style={{ fontSize:11, color:"#9A9085" }}>Copy as</span>
+                          <input type="number" step="any" value={editVal} onChange={ev=>setSearchServingEdits({...searchServingEdits, [e.id]: ev.target.value})} style={{ width:60, padding:"6px 8px", border:"1px solid #E0D8CC", borderRadius:8, fontSize:13 }} />
+                          <span style={{ fontSize:11, color:"#9A9085" }}>{e.unit}</span>
+                          <button onClick={()=>copyEntryCodeScaled(e, editVal)} style={{ marginLeft:"auto", background:"#EAF6F4", border:"1px solid #B8E2DC", color:"#1F8C82", borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:600, cursor:"pointer" }}>⧉ Copy</button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
             {historyView==="charts" && (
               <div>
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:16 }}>{MACROS.map(m=><button key={m} onClick={()=>setChartMacro(m)} style={{ padding:"5px 11px", borderRadius:50, border:"1px solid "+(chartMacro===m?MACRO_COLORS[m]:"#E0D8CC"), background: chartMacro===m?MACRO_COLORS[m]+"1A":"#fff", color: chartMacro===m?MACRO_COLORS[m]:"#9A9085", fontSize:10, cursor:"pointer", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>{m}</button>)}</div>
